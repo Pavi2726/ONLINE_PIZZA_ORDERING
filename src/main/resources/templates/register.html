@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Register')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<div th:replace="~{fragments/layout :: alerts}"></div>
+
+<section class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-12 col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-body p-4 p-md-5">
+                    <h2 class="fw-bold mb-1"><i class="bi bi-person-plus"></i> Create your account</h2>
+                    <p class="text-muted mb-4">Join Pizza Palace and start ordering.</p>
+
+                    <div id="registerError" class="alert alert-danger d-none" role="alert"></div>
+
+                    <form id="registerForm" th:action="@{/register}" th:object="${registerRequest}"
+                          method="post" novalidate>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">First Name</label>
+                                <input type="text" class="form-control" th:field="*{firstName}"
+                                       th:classappend="${#fields.hasErrors('firstName')} ? 'is-invalid'">
+                                <div class="invalid-feedback" th:errors="*{firstName}"></div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Last Name</label>
+                                <input type="text" class="form-control" th:field="*{lastName}"
+                                       th:classappend="${#fields.hasErrors('lastName')} ? 'is-invalid'">
+                                <div class="invalid-feedback" th:errors="*{lastName}"></div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Email</label>
+                                <input type="email" class="form-control" id="email" th:field="*{email}"
+                                       th:classappend="${#fields.hasErrors('email')} ? 'is-invalid'">
+                                <div class="invalid-feedback" th:errors="*{email}"></div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Phone</label>
+                                <input type="text" class="form-control" th:field="*{phone}"
+                                       th:classappend="${#fields.hasErrors('phone')} ? 'is-invalid'">
+                                <div class="invalid-feedback" th:errors="*{phone}"></div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Password</label>
+                                <input type="password" class="form-control" id="password" th:field="*{password}"
+                                       th:classappend="${#fields.hasErrors('password')} ? 'is-invalid'">
+                                <div class="invalid-feedback" th:errors="*{password}"></div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Confirm Password</label>
+                                <input type="password" class="form-control" id="confirmPassword" th:field="*{confirmPassword}"
+                                       th:classappend="${#fields.hasErrors('confirmPassword')} ? 'is-invalid'">
+                                <div class="invalid-feedback" th:errors="*{confirmPassword}"></div>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Address</label>
+                                <textarea class="form-control" rows="2" th:field="*{address}"
+                                          th:classappend="${#fields.hasErrors('address')} ? 'is-invalid'"></textarea>
+                                <div class="invalid-feedback" th:errors="*{address}"></div>
+                            </div>
+                        </div>
+
+                        <button type="submit" id="registerBtn" class="btn btn-danger w-100 mt-4">
+                            <i class="bi bi-check-circle"></i> Register
+                        </button>
+                    </form>
+
+                    <p class="text-center mt-3 mb-0">
+                        Already have an account? <a th:href="@{/login}">Login here</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<div th:replace="~{fragments/layout :: scripts}"></div>
+
+<script>
+    (function () {
+        "use strict";
+        var form = document.getElementById("registerForm");
+        if (!form) return;
+        var errorBox = document.getElementById("registerError");
+        var password = document.getElementById("password");
+        var confirmPassword = document.getElementById("confirmPassword");
+
+        form.addEventListener("submit", function (event) {
+            if (errorBox) errorBox.classList.add("d-none");
+            var pwd = password ? password.value : "";
+            var confirm = confirmPassword ? confirmPassword.value : "";
+            if (pwd.length < 8) {
+                event.preventDefault();
+                if (errorBox) {
+                    errorBox.textContent = "Password must be at least 8 characters.";
+                    errorBox.classList.remove("d-none");
+                }
+                return;
+            }
+            if (pwd !== confirm) {
+                event.preventDefault();
+                if (errorBox) {
+                    errorBox.textContent = "Passwords do not match.";
+                    errorBox.classList.remove("d-none");
+                }
+            }
+        });
+    })();
+</script>
+</body>
+</html>

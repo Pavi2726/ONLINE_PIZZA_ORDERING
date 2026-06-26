@@ -1,0 +1,66 @@
+# =====================================================================
+# Pizza Ordering System - Configuration Example
+# Copy this file to application.properties and fill in real values,
+# OR (recommended) set the environment variables listed below.
+# NEVER commit real secrets.
+# =====================================================================
+
+spring.application.name=pizza-ordering-system
+server.port=8080
+
+# ---------------------------------------------------------------------
+# Aiven MySQL Datasource
+# ---------------------------------------------------------------------
+# Example URL:
+# jdbc:mysql://<host>:<port>/<db>?ssl-mode=REQUIRED&useSSL=true&serverTimezone=UTC
+spring.datasource.url=${AIVEN_DB_URL}
+spring.datasource.username=${AIVEN_DB_USERNAME}
+spring.datasource.password=${AIVEN_DB_PASSWORD}
+spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+
+# ---------------------------------------------------------------------
+# HikariCP Connection Pool
+# ---------------------------------------------------------------------
+spring.datasource.hikari.maximum-pool-size=10
+spring.datasource.hikari.minimum-idle=2
+spring.datasource.hikari.idle-timeout=300000
+spring.datasource.hikari.connection-timeout=20000
+spring.datasource.hikari.pool-name=PizzaHikariPool
+
+# ---------------------------------------------------------------------
+# JPA / Hibernate
+# ---------------------------------------------------------------------
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.format_sql=true
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQLDialect
+spring.jpa.open-in-view=false
+
+# ---------------------------------------------------------------------
+# Thymeleaf
+# ---------------------------------------------------------------------
+spring.thymeleaf.cache=false
+
+# ---------------------------------------------------------------------
+# File Upload limits (pizza images)
+# ---------------------------------------------------------------------
+spring.servlet.multipart.max-file-size=5MB
+spring.servlet.multipart.max-request-size=5MB
+
+# ---------------------------------------------------------------------
+# Cloudinary (Image Storage)
+# ---------------------------------------------------------------------
+cloudinary.cloud-name=${CLOUDINARY_CLOUD_NAME}
+cloudinary.api-key=${CLOUDINARY_API_KEY}
+cloudinary.api-secret=${CLOUDINARY_API_SECRET}
+
+# ---------------------------------------------------------------------
+# Default Admin (seeded on first startup ONLY if BOTH variables are set).
+# If either is missing, NO admin account is created. Never hardcode these.
+# ---------------------------------------------------------------------
+admin.default.name=${ADMIN_DEFAULT_NAME:Administrator}
+admin.default.email=${ADMIN_DEFAULT_EMAIL:}
+admin.default.password=${ADMIN_DEFAULT_PASSWORD:}
+
+# Logging
+logging.level.com.pizza=DEBUG

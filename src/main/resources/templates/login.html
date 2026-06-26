@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Login')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<div th:replace="~{fragments/layout :: alerts}"></div>
+
+<section class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-6 col-lg-5">
+            <div class="card shadow-sm">
+                <div class="card-body p-4 p-md-5">
+                    <h2 class="fw-bold mb-1"><i class="bi bi-box-arrow-in-right"></i> Welcome back</h2>
+                    <p class="text-muted mb-4">Login to order your favourite pizza.</p>
+
+                    <form th:action="@{/login}" th:object="${loginRequest}" method="post" novalidate>
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" th:field="*{email}"
+                                   th:classappend="${#fields.hasErrors('email')} ? 'is-invalid'">
+                            <div class="invalid-feedback" th:errors="*{email}"></div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Password</label>
+                            <input type="password" class="form-control" th:field="*{password}"
+                                   th:classappend="${#fields.hasErrors('password')} ? 'is-invalid'">
+                            <div class="invalid-feedback" th:errors="*{password}"></div>
+                        </div>
+                        <button type="submit" class="btn btn-danger w-100">
+                            <i class="bi bi-box-arrow-in-right"></i> Login
+                        </button>
+                    </form>
+
+                    <p class="text-center mt-3 mb-0">
+                        New here? <a th:href="@{/register}">Create an account</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<div th:replace="~{fragments/layout :: scripts}"></div>
+</body>
+</html>

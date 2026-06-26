@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/admin-layout :: head('Edit Pizza')}"></head>
+<body class="admin-body">
+<nav th:replace="~{fragments/admin-layout :: topbar}"></nav>
+
+<div class="offcanvas offcanvas-start admin-sidebar" tabindex="-1" id="adminSidebar">
+    <div class="offcanvas-header">
+        <h5 class="offcanvas-title">Menu</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body">
+        <div th:replace="~{fragments/admin-layout :: sidebarLinks('manage')}"></div>
+    </div>
+</div>
+
+<div class="container-fluid">
+    <div class="row">
+        <aside class="col-lg-2 d-none d-lg-block admin-sidebar py-3">
+            <div th:replace="~{fragments/admin-layout :: sidebarLinks('manage')}"></div>
+        </aside>
+
+        <main class="col-lg-10 p-4">
+            <div th:replace="~{fragments/admin-layout :: alerts}"></div>
+
+            <div class="row justify-content-center">
+                <div class="col-12 col-xl-9">
+                    <div class="card shadow-sm">
+                        <div class="card-body p-4 p-md-5">
+                            <h2 class="fw-bold mb-4"><i class="bi bi-pencil-square"></i> Edit Pizza</h2>
+
+                            <div class="mb-4 text-center" th:if="${pizzaDTO.imageUrl}">
+                                <img th:src="${pizzaDTO.imageUrl}" class="img-fluid rounded shadow-sm current-image"
+                                     alt="Current image">
+                                <p class="small text-muted mt-2">Current image (upload a new one to replace it)</p>
+                            </div>
+
+                            <form th:action="@{/admin/pizzas/edit/{id}(id=${pizzaId})}" th:object="${pizzaDTO}"
+                                  method="post" enctype="multipart/form-data" novalidate>
+                                <div class="row g-3">
+                                    <div class="col-md-8">
+                                        <label class="form-label">Pizza Name</label>
+                                        <input type="text" class="form-control" th:field="*{name}"
+                                               th:classappend="${#fields.hasErrors('name')} ? 'is-invalid'">
+                                        <div class="invalid-feedback" th:errors="*{name}"></div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Category</label>
+                                        <input type="text" class="form-control" th:field="*{category}"
+                                               th:classappend="${#fields.hasErrors('category')} ? 'is-invalid'">
+                                        <div class="invalid-feedback" th:errors="*{category}"></div>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label">Description</label>
+                                        <textarea class="form-control" rows="3" th:field="*{description}"
+                                                  th:classappend="${#fields.hasErrors('description')} ? 'is-invalid'"></textarea>
+                                        <div class="invalid-feedback" th:errors="*{description}"></div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Price ($)</label>
+                                        <input type="number" step="0.01" min="0.01" class="form-control" th:field="*{price}"
+                                               th:classappend="${#fields.hasErrors('price')} ? 'is-invalid'">
+                                        <div class="invalid-feedback" th:errors="*{price}"></div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Replace Image (optional)</label>
+                                        <input type="file" class="form-control" name="image" accept="image/*">
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" th:field="*{available}" id="available">
+                                            <label class="form-check-label" for="available">Available for ordering</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex gap-2 mt-4">
+                                    <button type="submit" class="btn btn-danger">
+                                        <i class="bi bi-check-circle"></i> Update Pizza</button>
+                                    <a th:href="@{/admin/pizzas}" class="btn btn-outline-secondary">Cancel</a>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<div th:replace="~{fragments/admin-layout :: scripts}"></div>
+</body>
+</html>

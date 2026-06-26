@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Order Confirmed')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+
+<section class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-12 col-lg-7">
+            <div class="card shadow-sm text-center">
+                <div class="card-body p-4 p-md-5">
+                    <i class="bi bi-check-circle-fill text-success" style="font-size:4rem;"></i>
+                    <h2 class="fw-bold mt-3">Thank You for Your Order!</h2>
+                    <p class="text-muted">Your delicious pizza is on its way to being prepared.</p>
+
+                    <div class="text-start bg-light rounded p-4 mt-4">
+                        <div class="row mb-2">
+                            <div class="col-6 text-muted">Order Number</div>
+                            <div class="col-6 text-end fw-bold" th:text="${order.orderNumber}">ORD-0000</div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-6 text-muted">Pizza</div>
+                            <div class="col-6 text-end" th:text="${order.pizza.name}">Pizza</div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-6 text-muted">Quantity</div>
+                            <div class="col-6 text-end" th:text="${order.quantity}">1</div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-6 text-muted">Subtotal</div>
+                            <div class="col-6 text-end">$<span th:text="${#numbers.formatDecimal(order.subtotal, 1, 2)}">0.00</span></div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-6 text-muted">Tax</div>
+                            <div class="col-6 text-end">$<span th:text="${#numbers.formatDecimal(order.tax, 1, 2)}">0.00</span></div>
+                        </div>
+                        <div class="row mb-2 fw-bold">
+                            <div class="col-6">Total</div>
+                            <div class="col-6 text-end text-danger">$<span th:text="${#numbers.formatDecimal(order.totalAmount, 1, 2)}">0.00</span></div>
+                        </div>
+                        <hr>
+                        <div class="row mb-2">
+                            <div class="col-6 text-muted">Customer</div>
+                            <div class="col-6 text-end" th:text="${order.customer.fullName}">Name</div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-6 text-muted">Delivery Address</div>
+                            <div class="col-6 text-end" th:text="${order.deliveryAddress}">Address</div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-6 text-muted">Status</div>
+                            <div class="col-6 text-end">
+                                <span class="badge bg-warning text-dark" th:text="${order.status}">PLACED</span>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-6 text-muted">Order Date</div>
+                            <div class="col-6 text-end"
+                                 th:text="${#temporals.format(order.createdAt, 'dd MMM yyyy, HH:mm')}">date</div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2 justify-content-center mt-4">
+                        <a th:href="@{/pizzas}" class="btn btn-danger"><i class="bi bi-list-ul"></i> Order More</a>
+                        <a th:href="@{/}" class="btn btn-outline-secondary"><i class="bi bi-house"></i> Home</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<div th:replace="~{fragments/layout :: scripts}"></div>
+</body>
+</html>

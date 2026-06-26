@@ -1,0 +1,59 @@
+{
+  "info": {
+    "name": "Pizza Ordering System — Sriya Module",
+    "description": "Route reference for the server-rendered Thymeleaf application (US-001 to US-007). Most endpoints return HTML pages, not JSON. Use a browser or Postman with 'Follow redirects' enabled.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" }
+  ],
+  "item": [
+    {
+      "name": "Customer — Public",
+      "item": [
+        { "name": "Home", "request": { "method": "GET", "url": "{{baseUrl}}/" } },
+        { "name": "Register (GET form)", "request": { "method": "GET", "url": "{{baseUrl}}/register" } },
+        { "name": "Login (GET form)", "request": { "method": "GET", "url": "{{baseUrl}}/login" } },
+        { "name": "Pizza List", "request": { "method": "GET", "url": "{{baseUrl}}/pizzas" } },
+        { "name": "Pizza List — Search", "request": { "method": "GET", "url": "{{baseUrl}}/pizzas?search=margherita&sort=priceAsc" } },
+        { "name": "Customer Logout", "request": { "method": "GET", "url": "{{baseUrl}}/logout" } }
+      ]
+    },
+    {
+      "name": "Customer — Authenticated (session cookie required)",
+      "item": [
+        { "name": "Order Form", "request": { "method": "GET", "url": "{{baseUrl}}/orders/new?pizzaId=1" } },
+        { "name": "Order Success", "request": { "method": "GET", "url": "{{baseUrl}}/orders/success/ORD-20260625-1234" } }
+      ]
+    },
+    {
+      "name": "Admin — Public",
+      "item": [
+        { "name": "Admin Login (GET form)", "request": { "method": "GET", "url": "{{baseUrl}}/admin/login" } }
+      ]
+    },
+    {
+      "name": "Admin — Authenticated (admin session cookie required)",
+      "item": [
+        { "name": "Admin Dashboard", "request": { "method": "GET", "url": "{{baseUrl}}/admin/dashboard" } },
+        { "name": "Manage Pizzas", "request": { "method": "GET", "url": "{{baseUrl}}/admin/pizzas" } },
+        { "name": "Add Pizza (GET form)", "request": { "method": "GET", "url": "{{baseUrl}}/admin/pizzas/add" } },
+        { "name": "Edit Pizza (GET form)", "request": { "method": "GET", "url": "{{baseUrl}}/admin/pizzas/edit/1" } },
+        { "name": "Admin Logout", "request": { "method": "GET", "url": "{{baseUrl}}/admin/logout" } }
+      ]
+    },
+    {
+      "name": "Authorization Tests",
+      "item": [
+        {
+          "name": "Admin route without session (expect redirect to /admin/login)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/admin/dashboard" }
+        },
+        {
+          "name": "Order route without session (expect redirect to /login)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/orders/new?pizzaId=1" }
+        }
+      ]
+    }
+  ]
+}
