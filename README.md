@@ -1,127 +1,139 @@
-# Pizza Ordering System — Sriya Pandey Module
+# Online Pizza Ordering System
 
-Spring Boot + Thymeleaf web application implementing **US-001 to US-007**: customer
-registration with local BCrypt authentication, session-based login, pizza catalogue
-browsing, **admin-only** pizza management (Cloudinary), and order placement.
-
-> Scope: only Sriya Pandey's assigned stories. Coupons, cart, payments, customer
-> management, order history, and admin order management belong to other teammates.
+An Online Pizza Ordering System built using **Spring Boot**, **Thymeleaf**, and **MySQL**. The application enables customers to browse pizzas, place orders, apply coupons, manage their orders, and allows administrators to manage pizzas, customers, orders, and coupons.
 
 ---
 
-## Tech Stack
+## Features
 
-| Layer | Technology |
-|-------|------------|
-| Backend | Java 17, Spring Boot 3.x, Spring MVC, Spring Data JPA |
-| Frontend | Thymeleaf, Bootstrap 5, Bootstrap Icons |
-| Database | Aiven MySQL (never H2) |
-| Customer auth | `HttpSession` + BCrypt (no Spring Security / JWT / email verification) |
-| Admin auth | Separate `HttpSession` key (`currentAdmin`) |
-| Images | Cloudinary (URL in DB only) |
-| Build | Maven |
+### Customer Features
+
+* Customer Registration
+* Secure Login & Logout
+* Browse Pizza Catalogue
+* Search and Filter Pizzas
+* Place Pizza Orders
+* Apply Coupons
+* View Order History
+* Update Pending Orders
+* Cancel Orders
+
+### Admin Features
+
+* Pizza Management (Add, Update, Delete)
+* Coupon Management
+* Customer Management
+* Order Management
+
+---
+
+## Technology Stack
+
+| Layer          | Technology                  |
+| -------------- | --------------------------- |
+| Backend        | Java 17, Spring Boot 3.x    |
+| Frontend       | Thymeleaf, Bootstrap 5      |
+| Database       | MySQL                       |
+| ORM            | Spring Data JPA (Hibernate) |
+| Authentication | BCrypt + HttpSession        |
+| Build Tool     | Maven                       |
+| Testing        | JUnit 5                     |
 
 ---
 
 ## User Stories
 
-| ID | Feature | Access |
-|----|---------|--------|
-| US-001 | Customer registration (local BCrypt) | Public |
-| US-002 | Customer login / logout | Public |
-| US-003 | View / search / filter pizza list | Public |
-| US-004 | Add pizza | **Admin only** (`/admin/pizzas/add`) |
-| US-005 | Update pizza | **Admin only** (`/admin/pizzas/edit/{id}`) |
-| US-006 | Delete pizza | **Admin only** (`/admin/pizzas/delete/{id}`) |
-| US-007 | Place order | **Customer only** (`/orders/**`) |
+| ID     | Description           |
+| ------ | --------------------- |
+| US-001 | Customer Registration |
+| US-002 | Customer Login        |
+| US-003 | View Pizza List       |
+| US-004 | Add Pizza             |
+| US-005 | Update Pizza          |
+| US-006 | Delete Pizza          |
+| US-007 | Place Order           |
+| US-008 | Apply Coupon          |
+| US-009 | View Order History    |
+| US-010 | Update Order          |
+| US-011 | Cancel Order          |
+| US-012 | Create Coupon         |
+| US-013 | Update Coupon         |
+| US-014 | Delete Coupon         |
+| US-015 | View Customers        |
+| US-016 | Manage Customers      |
+| US-017 | View Orders           |
+| US-018 | Manage Orders         |
 
 ---
 
-## Quick Start
+## Project Structure
 
-1. Copy [`.env.example`](.env.example) and set all required variables.
-2. Follow [`SETUP_GUIDE.md`](SETUP_GUIDE.md) for Cloudinary and Aiven setup.
-3. Run:
+```text
+src/
+├── main/
+│   ├── java/
+│   ├── resources/
+│   └── templates/
+└── test/
+
+DATABASE_SCHEMA.sql
+PROJECT_STRUCTURE.md
+SETUP_GUIDE.md
+POSTMAN_COLLECTION.json
+pom.xml
+```
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+* Java 17 or later
+* Maven
+* MySQL
+
+### Setup
+
+1. Clone the repository.
+2. Configure the environment variables using `.env.example`.
+3. Create the database using `DATABASE_SCHEMA.sql`.
+4. Update the database configuration.
+5. Run the application:
 
 ```bash
-export $(grep -v '^#' .env | xargs)   # or set vars manually
 mvn spring-boot:run
 ```
 
-4. Open http://localhost:8080 (customer) and http://localhost:8080/admin/login (admin).
+The application will be available at:
 
----
-
-## Authorization Model
-
-| Session key | Used by | Protected routes |
-|-------------|---------|------------------|
-| `currentCustomer` | Customers | `/orders/**` via `CustomerAuthInterceptor` |
-| `currentAdmin` | Admins | `/admin/**` via `AdminAuthInterceptor` |
-
-Sessions are **never mixed**. Logout clears only the corresponding principal.
-
----
-
-## Admin Account
-
-No admin credentials are hardcoded. On first startup, an admin is created **only**
-when **both** environment variables are set:
-
-- `ADMIN_DEFAULT_EMAIL`
-- `ADMIN_DEFAULT_PASSWORD`
-
-If either is missing, no admin is created and a warning is logged.
+```
+http://localhost:8080
+```
 
 ---
 
 ## Documentation
 
-| File | Purpose |
-|------|---------|
-| [`SETUP_GUIDE.md`](SETUP_GUIDE.md) | Step-by-step deployment setup |
-| [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) | Codebase layout |
-| [`DATABASE_SCHEMA.sql`](DATABASE_SCHEMA.sql) | Table definitions |
-| [`.env.example`](.env.example) | Environment variable template |
-| [`POSTMAN_COLLECTION.json`](POSTMAN_COLLECTION.json) | Route reference for testing |
+* **SETUP_GUIDE.md** – Project setup instructions
+* **PROJECT_STRUCTURE.md** – Project architecture
+* **DATABASE_SCHEMA.sql** – Database schema
+* **POSTMAN_COLLECTION.json** – API collection for testing
+* **.env.example** – Environment variable template
 
 ---
 
-## Authentication Flow
+## Development
 
-Authentication is fully local — no Firebase, email verification, OTP, JWT, or
-Spring Security.
+The application follows a layered architecture consisting of:
 
-**Registration (US-001):**
+* Model
+* Repository
+* Service
+* Controller
+* View (Thymeleaf)
 
-```
-User submits form (name, email, phone, password, confirm password, address)
-→ validate email/phone format, password strength, confirm-password match
-→ check duplicate email and phone in MySQL
-→ hash password once with BCrypt
-→ save customer in MySQL
-→ redirect to /login with "Registration successful. Please login."
-```
-
-**Login (US-002):**
-
-```
-User submits email + password
-→ find customer by email
-→ passwordEncoder.matches(rawPassword, storedHash)
-→ on success: create HttpSession (currentCustomer) → redirect to dashboard
-→ on failure: "Invalid email or password."
-```
-
-Passwords are hashed exactly once with `BCryptPasswordEncoder` and are never
-stored or logged in plain text.
+Development follows the **Test Driven Development (TDD)** approach with unit and integration testing.
 
 ---
 
-## Production Checklist
-
-- [ ] All env vars set (see `.env.example`)
-- [ ] `ADMIN_DEFAULT_*` set for first admin, then rotate password
-- [ ] `spring.jpa.hibernate.ddl-auto=update` reviewed for production (consider `validate`)
-- [ ] Cloudinary folder permissions configured
-- [ ] Aiven MySQL SSL enabled in JDBC URL
