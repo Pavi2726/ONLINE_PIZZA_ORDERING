@@ -1,15 +1,6 @@
 package com.pizza.controller;
+import java.util.List;
 
-import com.pizza.dto.OrderDTO;
-import com.pizza.entity.Customer;
-import com.pizza.entity.Order;
-import com.pizza.entity.Pizza;
-import com.pizza.service.OrderService;
-import com.pizza.service.PizzaService;
-import com.pizza.util.SessionUtil;
-import jakarta.servlet.http.HttpSession;
-import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -20,6 +11,18 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+import com.pizza.dto.OrderDTO;
+import com.pizza.entity.Customer;
+import com.pizza.entity.Order;
+import com.pizza.entity.Pizza;
+import com.pizza.service.OrderService;
+import com.pizza.service.PizzaService;
+import com.pizza.util.SessionUtil;
+
+import jakarta.servlet.http.HttpSession;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Order placement and confirmation (US-007). Requires a logged-in customer.
@@ -107,4 +110,112 @@ public class OrderController {
         model.addAttribute("order", order);
         return "order-success";
     }
+    @GetMapping("/history")
+public String viewOrderHistory(
+        HttpSession session,
+        Model model,
+        RedirectAttributes redirectAttributes) {
+
+    Customer customer = SessionUtil.getCurrentCustomer(session);
+
+    if (customer == null) {
+        redirectAttributes.addFlashAttribute(
+                "errorMessage",
+                "Please log in to view your order history.");
+        return "redirect:/login";
+    }
+
+    List<Order> orders = orderService.getOrderHistory(customer.getId());
+
+    model.addAttribute("orders", orders);
+
+    return "order-history";
+}
+@GetMapping("/edit/{orderId}")
+public String showEditOrderForm(
+        @PathVariable Long orderId,
+        HttpSession session,
+        Model model,
+        RedirectAttributes redirectAttributes) {
+
+    Customer customer = SessionUtil.getCurrentCustomer(session);
+
+    if (customer == null) {
+        redirectAttributes.addFlashAttribute(
+                "errorMessage",
+                "Please log in first.");
+        return "redirect:/login";
+    }
+
+    Order order = orderService.getOrderForEdit(orderId, customer.getId());
+
+    OrderDTO orderDTO = new OrderDTO();
+    orderDTO.setPizzaId(order.getPizza().getId());
+    orderDTO.setQuantity(order.getQuantity());
+    orderDTO.setDeliveryAddress(order.getDeliveryAddress());
+    orderDTO.setPhone(order.getPhone());
+
+    model.addAttribute("order", order);
+    model.addAttribute("orderDTO", orderDTO);
+
+    return "edit-order";
+}
+@PostMapping("/update/{orderId}")
+public String updateOrder(
+        @PathVariable Long orderId,
+        @Valid @ModelAttribute("orderDTO") OrderDTO orderDTO,
+        BindingResult bindingResult,
+        HttpSession session,
+        Model model,
+        RedirectAttributes redirectAttributes) {
+
+    Customer customer = SessionUtil.getCurrentCustomer(session);
+
+    if (customer == null) {
+        redirectAttributes.addFlashAttribute(
+                "errorMessage",
+                "Please log in first.");
+        return "redirect:/login";
+    }
+
+    if (bindingResult.hasErrors()) {
+
+        Order order = orderService.getOrderForEdit(orderId, customer.getId());
+
+        model.addAttribute("order", order);
+
+        return "edit-order";
+    }
+
+    orderService.updateOrder(orderId, orderDTO, customer.getId());
+
+    redirectAttributes.addFlashAttribute(
+            "successMessage",
+            "Order updated successfully.");
+
+    return "redirect:/orders/history";
+}
+@PostMapping("/cancel/{orderId}")
+public String cancelOrder(
+        @PathVariable Long orderId,
+        HttpSession session,
+        RedirectAttributes redirectAttributes) {
+
+    Customer customer = SessionUtil.getCurrentCustomer(session);
+
+    if (customer == null) {
+        redirectAttributes.addFlashAttribute(
+                "errorMessage",
+                "Please log in first.");
+        return "redirect:/login";
+    }
+
+    orderService.cancelOrder(orderId, customer.getId());
+
+    redirectAttributes.addFlashAttribute(
+            "successMessage",
+            "Order cancelled successfully.");
+
+    return "redirect:/orders/history";
+}
 }

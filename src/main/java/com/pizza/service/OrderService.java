@@ -3,6 +3,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.springframework.stereotype.Service;
@@ -68,6 +69,8 @@ BigDecimal subtotal = pizza.getPrice()
 
 // Default discount = 0
 BigDecimal discount = BigDecimal.ZERO;
+String couponCode = null;
+Integer discountPercentage = null;
 
 // Apply coupon if entered
 if (dto.getCouponCode() != null && !dto.getCouponCode().trim().isEmpty()) {
@@ -81,10 +84,14 @@ if (dto.getCouponCode() != null && !dto.getCouponCode().trim().isEmpty()) {
         throw new IllegalArgumentException("Coupon is inactive.");
     }
 
-    discount = subtotal
-            .multiply(BigDecimal.valueOf(coupon.getDiscountPercentage()))
-            .divide(BigDecimal.valueOf(100))
-            .setScale(2, RoundingMode.HALF_UP);
+couponCode = coupon.getCouponCode();
+discountPercentage = coupon.getDiscountPercentage();
+
+discount = subtotal
+        .multiply(BigDecimal.valueOf(discountPercentage))
+        .divide(BigDecimal.valueOf(100))
+        .setScale(2, RoundingMode.HALF_UP);
+        
 }
 
 // Subtotal after discount
@@ -105,6 +112,9 @@ BigDecimal total = discountedSubtotal
                 .quantity(dto.getQuantity())
                 .subtotal(discountedSubtotal)
                 .tax(tax)
+                .couponCode(couponCode)
+                .discountPercentage(discountPercentage)
+                .discountAmount(discount)
                 .totalAmount(total)
                 .deliveryAddress(dto.getDeliveryAddress().trim())
                 .phone(dto.getPhone().trim())
@@ -132,7 +142,83 @@ BigDecimal total = discountedSubtotal
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Order not found: " + orderNumber));
     }
+    @Transactional(readOnly = true)
+    public List<Order> getOrderHistory(Long customerId) {
+        return orderRepository.findAllByCustomerId(customerId);
+   }
 
+   @Transactional(readOnly = true)
+    public Order getOrderForEdit(Long orderId, Long customerId) {
+
+    Order order = orderRepository.findByIdAndCustomerId(orderId, customerId)
+            .orElseThrow(() ->
+                    new ResourceNotFoundException("Order not found"));
+
+    if (!DEFAULT_STATUS.equals(order.getStatus())) {
+        throw new IllegalStateException("Only placed orders can be updated.");
+    }
+
+    return order;
+    }
+    @Transactional
+    public Order updateOrder(Long orderId,
+                         OrderDTO dto,
+                         Long customerId) {
+
+    Order order = getOrderForEdit(orderId, customerId);
+
+    if (dto.getQuantity() == null || dto.getQuantity() < 1) {
+        throw new IllegalArgumentException("Quantity must be at least 1");
+    }
+
+    BigDecimal quantity = BigDecimal.valueOf(dto.getQuantity());
+
+    BigDecimal subtotal = order.getPizza().getPrice()
+        .multiply(quantity)
+        .setScale(2, RoundingMode.HALF_UP);
+
+// Recalculate discount if coupon was used
+BigDecimal discount = BigDecimal.ZERO;
+
+if (order.getDiscountPercentage() != null) {
+
+    discount = subtotal
+            .multiply(BigDecimal.valueOf(order.getDiscountPercentage()))
+            .divide(BigDecimal.valueOf(100))
+            .setScale(2, RoundingMode.HALF_UP);
+}
+
+BigDecimal discountedSubtotal = subtotal.subtract(discount);
+
+BigDecimal tax = discountedSubtotal
+        .multiply(TAX_RATE)
+        .setScale(2, RoundingMode.HALF_UP);
+
+BigDecimal total = discountedSubtotal
+        .add(tax)
+        .setScale(2, RoundingMode.HALF_UP);
+
+    order.setQuantity(dto.getQuantity());
+    order.setDeliveryAddress(dto.getDeliveryAddress().trim());
+    order.setPhone(dto.getPhone().trim());
+
+    order.setSubtotal(discountedSubtotal);
+    order.setDiscountAmount(discount);
+    order.setTax(tax);
+    order.setTotalAmount(total);
+
+    return orderRepository.save(order);
+   }
+
+   @Transactional
+public void cancelOrder(Long orderId, Long customerId) {
+
+    Order order = getOrderForEdit(orderId, customerId);
+
+    order.setStatus("CANCELLED");
+
+    orderRepository.save(order);
+}
     /**
      * Generates a unique, human-friendly order number such as
      * {@code ORD-20260625-4821}.
