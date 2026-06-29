@@ -1,19 +1,23 @@
 package com.pizza.service;
-
-import com.pizza.dto.OrderDTO;
-import com.pizza.entity.Customer;
-import com.pizza.entity.Order;
-import com.pizza.entity.Pizza;
-import com.pizza.exception.ResourceNotFoundException;
-import com.pizza.repository.OrderRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.ThreadLocalRandom;
-import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.pizza.dto.OrderDTO;
+import com.pizza.entity.Coupon;
+import com.pizza.entity.Customer;
+import com.pizza.entity.Order;
+import com.pizza.entity.Pizza;
+import com.pizza.exception.ResourceNotFoundException;
+import com.pizza.repository.CouponRepository;
+import com.pizza.repository.OrderRepository;
+
+import lombok.RequiredArgsConstructor;
 
 /**
  * Business logic for placing orders (US-007): total calculation, order-number
@@ -30,6 +34,10 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final PizzaService pizzaService;
+
+    private final CouponRepository couponRepository;
+
+
 
     /**
      * Places an order for the given customer.
@@ -53,17 +61,49 @@ public class OrderService {
         }
 
         BigDecimal quantity = BigDecimal.valueOf(dto.getQuantity());
-        BigDecimal subtotal = pizza.getPrice().multiply(quantity)
-                .setScale(2, RoundingMode.HALF_UP);
-        BigDecimal tax = subtotal.multiply(TAX_RATE).setScale(2, RoundingMode.HALF_UP);
-        BigDecimal total = subtotal.add(tax).setScale(2, RoundingMode.HALF_UP);
+
+BigDecimal subtotal = pizza.getPrice()
+        .multiply(quantity)
+        .setScale(2, RoundingMode.HALF_UP);
+
+// Default discount = 0
+BigDecimal discount = BigDecimal.ZERO;
+
+// Apply coupon if entered
+if (dto.getCouponCode() != null && !dto.getCouponCode().trim().isEmpty()) {
+
+    Coupon coupon = couponRepository
+            .findByCouponCode(dto.getCouponCode().trim().toUpperCase())
+            .orElseThrow(() ->
+                    new IllegalArgumentException("Invalid coupon code."));
+
+    if (!coupon.isActive()) {
+        throw new IllegalArgumentException("Coupon is inactive.");
+    }
+
+    discount = subtotal
+            .multiply(BigDecimal.valueOf(coupon.getDiscountPercentage()))
+            .divide(BigDecimal.valueOf(100))
+            .setScale(2, RoundingMode.HALF_UP);
+}
+
+// Subtotal after discount
+BigDecimal discountedSubtotal = subtotal.subtract(discount);
+
+BigDecimal tax = discountedSubtotal
+        .multiply(TAX_RATE)
+        .setScale(2, RoundingMode.HALF_UP);
+
+BigDecimal total = discountedSubtotal
+        .add(tax)
+        .setScale(2, RoundingMode.HALF_UP);
 
         Order order = Order.builder()
                 .orderNumber(generateOrderNumber())
                 .customer(customer)
                 .pizza(pizza)
                 .quantity(dto.getQuantity())
-                .subtotal(subtotal)
+                .subtotal(discountedSubtotal)
                 .tax(tax)
                 .totalAmount(total)
                 .deliveryAddress(dto.getDeliveryAddress().trim())

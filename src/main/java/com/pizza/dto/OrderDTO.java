@@ -31,4 +31,5 @@ public class OrderDTO {
     @NotBlank(message = "Phone is required")
     @Pattern(regexp = "^[0-9]{10,15}$", message = "Phone must be 10 to 15 digits")
     private String phone;
+    private String couponCode;
 }

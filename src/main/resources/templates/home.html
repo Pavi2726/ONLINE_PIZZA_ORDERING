@@ -40,7 +40,7 @@
                        th:text="${#strings.abbreviate(pizza.description, 70)}">Description</p>
                     <div class="d-flex justify-content-between align-items-center">
                         <span class="fw-bold text-danger"
-                              th:text="'$' + ${#numbers.formatDecimal(pizza.price, 1, 2)}">$0.00</span>
+                              th:text="'₹' + ${#numbers.formatDecimal(pizza.price, 1, 2)}">₹0.00</span>
                         <a th:href="@{/orders/new(pizzaId=${pizza.id})}" class="btn btn-sm btn-danger">
                             <i class="bi bi-bag-plus"></i> Order
                         </a>

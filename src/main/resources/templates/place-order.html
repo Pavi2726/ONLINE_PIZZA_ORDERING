@@ -17,7 +17,7 @@
                     <span class="badge bg-light text-dark border mb-2" th:text="${pizza.category}">Category</span>
                     <p class="small text-muted" th:text="${pizza.description}">Description</p>
                     <p class="fw-bold text-danger mb-0">
-                        Unit price: $<span th:text="${#numbers.formatDecimal(pizza.price, 1, 2)}">0.00</span>
+                        Unit price: ₹<span th:text="${#numbers.formatDecimal(pizza.price, 1, 2)}">0.00</span>
                     </p>
                 </div>
             </div>
@@ -31,6 +31,7 @@
 
                     <form th:action="@{/orders}" th:object="${orderDTO}" method="post" novalidate
                           th:attr="data-unit-price=${pizza.price},data-tax-rate=0.08" id="orderForm">
+
                         <input type="hidden" th:field="*{pizzaId}">
 
                         <div class="mb-3">
@@ -40,12 +41,14 @@
                                    th:classappend="${#fields.hasErrors('quantity')} ? 'is-invalid'">
                             <div class="invalid-feedback" th:errors="*{quantity}"></div>
                         </div>
+
                         <div class="mb-3">
                             <label class="form-label">Delivery Address</label>
                             <textarea class="form-control" rows="2" th:field="*{deliveryAddress}"
                                       th:classappend="${#fields.hasErrors('deliveryAddress')} ? 'is-invalid'"></textarea>
                             <div class="invalid-feedback" th:errors="*{deliveryAddress}"></div>
                         </div>
+
                         <div class="mb-3">
                             <label class="form-label">Phone</label>
                             <input type="text" class="form-control" th:field="*{phone}"
@@ -53,17 +56,37 @@
                             <div class="invalid-feedback" th:errors="*{phone}"></div>
                         </div>
 
+                        <!-- Coupon Code -->
+                        <div class="mb-3">
+                            <label class="form-label">
+                                Coupon Code
+                                <span class="text-muted">(Optional)</span>
+                            </label>
+
+                            <input type="text"
+                                   class="form-control"
+                                   th:field="*{couponCode}"
+                                   placeholder="Enter coupon code (e.g. SAVE10)">
+
+                            <small class="text-muted">
+                                Leave blank if you don't have a coupon.
+                            </small>
+                        </div>
+
                         <!-- Live total -->
                         <div class="bg-light rounded p-3 mb-3">
                             <div class="d-flex justify-content-between">
-                                <span>Subtotal</span><span>$<span id="subtotal">0.00</span></span>
+                                <span>Subtotal</span><span>₹<span id="subtotal">0.00</span></span>
                             </div>
+
                             <div class="d-flex justify-content-between">
-                                <span>Tax (8%)</span><span>$<span id="tax">0.00</span></span>
+                                <span>Tax (8%)</span><span>₹<span id="tax">0.00</span></span>
                             </div>
+
                             <hr class="my-2">
+
                             <div class="d-flex justify-content-between fw-bold fs-5">
-                                <span>Grand Total</span><span class="text-danger">$<span id="grandTotal">0.00</span></span>
+                                <span>Grand Total</span><span class="text-danger">₹<span id="grandTotal">0.00</span></span>
                             </div>
                         </div>
 
@@ -71,6 +94,7 @@
                             <span class="spinner-border spinner-border-sm d-none" role="status"></span>
                             <i class="bi bi-check2-circle"></i> Confirm Order
                         </button>
+
                     </form>
                 </div>
             </div>
