@@ -78,7 +78,7 @@
                         </td>
                         <td class="fw-semibold" th:text="${pizza.name}">Name</td>
                         <td><span class="badge bg-light text-dark border" th:text="${pizza.category}">Category</span></td>
-                        <td th:text="'$' + ${#numbers.formatDecimal(pizza.price, 1, 2)}">$0.00</td>
+                        <td th:text="'₹' + ${#numbers.formatInteger(pizza.price, 1)}">₹0</td>
                         <td>
                             <span class="badge"
                                   th:classappend="${pizza.available} ? 'bg-success' : 'bg-secondary'"

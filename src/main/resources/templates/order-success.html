@@ -28,15 +28,15 @@
                         </div>
                         <div class="row mb-2">
                             <div class="col-6 text-muted">Subtotal</div>
-                            <div class="col-6 text-end">$<span th:text="${#numbers.formatDecimal(order.subtotal, 1, 2)}">0.00</span></div>
+                            <div class="col-6 text-end">₹<span th:text="${#numbers.formatInteger(order.subtotal, 1)}">0</span></div>
                         </div>
                         <div class="row mb-2">
                             <div class="col-6 text-muted">Tax</div>
-                            <div class="col-6 text-end">$<span th:text="${#numbers.formatDecimal(order.tax, 1, 2)}">0.00</span></div>
+                            <div class="col-6 text-end">₹<span th:text="${#numbers.formatInteger(order.tax, 1)}">0</span></div>
                         </div>
                         <div class="row mb-2 fw-bold">
                             <div class="col-6">Total</div>
-                            <div class="col-6 text-end text-danger">$<span th:text="${#numbers.formatDecimal(order.totalAmount, 1, 2)}">0.00</span></div>
+                            <div class="col-6 text-end text-danger">₹<span th:text="${#numbers.formatInteger(order.totalAmount, 1)}">0</span></div>
                         </div>
                         <hr>
                         <div class="row mb-2">

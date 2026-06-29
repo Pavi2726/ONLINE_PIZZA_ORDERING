@@ -67,7 +67,7 @@
                        th:text="${pizza.description}">Description</p>
                     <div class="d-flex justify-content-between align-items-center mt-2">
                         <span class="fs-5 fw-bold text-danger"
-                              th:text="'$' + ${#numbers.formatDecimal(pizza.price, 1, 2)}">$0.00</span>
+                              th:text="'₹' + ${#numbers.formatInteger(pizza.price, 1)}">₹0</span>
                         <a th:if="${pizza.available}" th:href="@{/orders/new(pizzaId=${pizza.id})}"
                            class="btn btn-sm btn-danger"><i class="bi bi-bag-plus"></i> Order</a>
                         <button th:unless="${pizza.available}" class="btn btn-sm btn-secondary" disabled>
