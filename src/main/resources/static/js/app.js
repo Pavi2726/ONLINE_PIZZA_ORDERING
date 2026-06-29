@@ -22,9 +22,9 @@
             const subtotal = unitPrice * qty;
             const tax = subtotal * taxRate;
             const total = subtotal + tax;
-            subtotalEl.textContent = subtotal.toFixed(0);
-            taxEl.textContent = tax.toFixed(0);
-            grandTotalEl.textContent = total.toFixed(0);
+            subtotalEl.textContent = subtotal.toFixed(2);
+            taxEl.textContent = tax.toFixed(2);
+            grandTotalEl.textContent = total.toFixed(2);
         };
 
         quantityInput.addEventListener("input", recalc);
