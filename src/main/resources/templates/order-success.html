@@ -54,11 +54,14 @@
                             </div>
                         </div>
                         <div class="row">
-                            <div class="col-6 text-muted">Order Date</div>
-                            <div class="col-6 text-end"
-                                 th:text="${#temporals.format(order.createdAt, 'dd MMM yyyy, HH:mm')}">date</div>
-                        </div>
-                    </div>
+    <div class="col-6 text-muted">Order Date</div>
+    <div class="col-6 text-end"
+         th:text="${#temporals.format(
+             order.updatedAt != null ? order.updatedAt : order.createdAt,
+             'dd MMM yyyy, HH:mm')}">
+        date
+    </div>
+</div>
 
                     <div class="d-flex gap-2 justify-content-center mt-4">
                         <a th:href="@{/pizzas}" class="btn btn-danger"><i class="bi bi-list-ul"></i> Order More</a>

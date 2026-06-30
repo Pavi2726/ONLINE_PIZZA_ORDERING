@@ -45,7 +45,25 @@
                             <strong>Total:</strong>
                             ₹<span th:text="${#numbers.formatDecimal(order.totalAmount,1,2)}"></span>
                         </p>
+                        <div th:if="${order.couponCode != null}" class="mb-1">
 
+    <strong>Coupon:</strong>
+
+    <span class="badge bg-success"
+          th:text="${order.couponCode}">
+    </span>
+
+    <span class="text-success ms-2">
+        (<span th:text="${order.discountPercentage}"></span>% OFF)
+    </span>
+
+    <br>
+
+    <small class="text-success">
+        Saved ₹<span th:text="${#numbers.formatDecimal(order.discountAmount,1,2)}"></span>
+    </small>
+
+</div>
                         <p class="mb-1">
                             <strong>Status:</strong>
 
@@ -63,10 +81,18 @@
 
                         </p>
 
-                        <p class="text-muted mb-0">
-                            <strong>Ordered On:</strong>
-                            <span th:text="${#temporals.format(order.createdAt,'dd MMM yyyy HH:mm')}"></span>
-                        </p>
+                       <p class="text-muted mb-0">
+
+    <strong th:text="${order.updatedAt != null ? 'Updated On:' : 'Ordered On:'}">
+        Ordered On:
+    </strong>
+
+    <span th:text="${#temporals.format(
+        order.updatedAt != null ? order.updatedAt : order.createdAt,
+        'dd MMM yyyy, HH:mm:ss')}">
+    </span>
+
+</p>
 
                     </div>
 
