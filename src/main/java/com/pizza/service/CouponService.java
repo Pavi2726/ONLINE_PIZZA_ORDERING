@@ -66,4 +66,16 @@ public class CouponService {
 
         couponRepository.delete(coupon);
     }
+    @Transactional(readOnly = true)
+public Coupon validateCoupon(String couponCode) {
+
+    Coupon coupon = couponRepository.findByCouponCode(couponCode.trim().toUpperCase())
+            .orElseThrow(() -> new RuntimeException("Invalid coupon code."));
+
+    if (!coupon.isActive()) {
+        throw new RuntimeException("Coupon is inactive.");
+    }
+
+    return coupon;
+}
 }

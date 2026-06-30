@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Checkout')}"></head>
+
+<body>
+
+<div th:replace="~{fragments/layout :: navbar}"></div>
+
+<div class="container mt-5">
+
+    <h2 class="mb-4 text-center">Checkout</h2>
+
+    <!-- Empty Cart -->
+    <div th:if="${#lists.isEmpty(cart.cartItems)}" class="alert alert-warning">
+        Your cart is empty.
+    </div>
+
+    <!-- Checkout Details -->
+    <div th:unless="${#lists.isEmpty(cart.cartItems)}">
+
+        <table class="table table-bordered align-middle">
+
+            <thead class="table-dark">
+            <tr>
+                <th>Pizza</th>
+                <th>Price</th>
+                <th>Quantity</th>
+                <th>Total</th>
+            </tr>
+            </thead>
+
+            <tbody>
+
+            <tr th:each="item : ${cart.cartItems}">
+                <td th:text="${item.pizza.name}"></td>
+
+                <td>
+                    ₹<span th:text="${item.pizza.price}"></span>
+                </td>
+
+                <td th:text="${item.quantity}"></td>
+
+                <td>
+    ₹<span th:text="${item.pizza.price * item.quantity}"></span>
+</td>
+            </tr>
+
+            </tbody>
+
+        </table>
+
+        <div class="card">
+
+            <div class="card-body">
+
+                <p>
+                    <strong>Subtotal:</strong>
+                    ₹<span th:text="${subtotal}"></span>
+                </p>
+
+                <p>
+                    <strong>Discount:</strong>
+                    ₹<span th:text="${discount}"></span>
+                </p>
+
+                <p th:if="${appliedCoupon != null}">
+                    <strong>Coupon:</strong>
+                    <span class="text-success"
+      th:text="${appliedCoupon.couponCode}"></span>
+                </p>
+
+                <h4>
+                    Grand Total :
+                    <span class="text-success">
+                        ₹<span th:text="${grandTotal}"></span>
+                    </span>
+                </h4>
+
+                <hr>
+
+                <form th:action="@{/orders/place}" method="post">
+
+                    <button type="submit"
+                             class="btn btn-success btn-lg">
+                        Place Order
+                    </button>
+
+                    <a th:href="@{/cart}"
+                       class="btn btn-secondary btn-lg">
+                        Back to Cart
+                    </a>
+
+                </form>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+</body>
+</html>

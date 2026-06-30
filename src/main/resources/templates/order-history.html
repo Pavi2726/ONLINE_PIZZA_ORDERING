@@ -27,24 +27,73 @@
 
                     <div class="col-md-8">
 
-                        <h5 class="fw-bold" th:text="${order.pizza.name}">
-                            Pizza Name
-                        </h5>
+                      
+                        <h5 class="fw-bold mb-3">
+    Ordered Items
+</h5>
 
+<table class="table table-bordered table-sm">
+
+    <thead class="table-light">
+        <tr>
+            <th>Pizza</th>
+            <th>Qty</th>
+            <th>Price</th>
+            <th>Total</th>
+        </tr>
+    </thead>
+
+    <tbody>
+
+        <tr th:each="item : ${order.orderItems}">
+
+            <td th:text="${item.pizza.name}"></td>
+
+            <td th:text="${item.quantity}"></td>
+
+            <td>
+                ₹<span th:text="${item.price}"></span>
+            </td>
+
+            <td>
+                ₹<span th:text="${item.lineTotal}"></span>
+            </td>
+
+        </tr>
+
+    </tbody>
+
+</table>
                         <p class="mb-1">
                             <strong>Order Number:</strong>
                             <span th:text="${order.orderNumber}"></span>
                         </p>
 
-                        <p class="mb-1">
-                            <strong>Quantity:</strong>
-                            <span th:text="${order.quantity}"></span>
-                        </p>
+                       
 
                         <p class="mb-1">
-                            <strong>Total:</strong>
-                            ₹<span th:text="${#numbers.formatDecimal(order.totalAmount,1,2)}"></span>
-                        </p>
+    <strong>Subtotal:</strong>
+    ₹<span th:text="${order.subtotal}"></span>
+</p>
+
+<div th:if="${order.discountAmount != null}">
+
+    <p class="mb-1 text-success">
+        <strong>Discount:</strong>
+        -₹<span th:text="${order.discountAmount}"></span>
+    </p>
+
+</div>
+
+<p class="mb-1">
+    <strong>Tax:</strong>
+    ₹<span th:text="${order.tax}"></span>
+</p>
+
+<p class="mb-1 fw-bold">
+    <strong>Grand Total:</strong>
+    ₹<span th:text="${order.totalAmount}"></span>
+</p>
                         <div th:if="${order.couponCode != null}" class="mb-1">
 
     <strong>Coupon:</strong>
@@ -101,7 +150,11 @@
                 <!-- Action Buttons -->
                 <div class="d-flex justify-content-end gap-2 mt-3"
                      th:if="${order.status == 'PLACED'}">
-
+                    <a th:href="@{/orders/success/{orderNumber}(orderNumber=${order.orderNumber})}"
+   class="btn btn-info btn-sm">
+    <i class="bi bi-eye"></i>
+    View Details
+</a>
                     <!-- Edit -->
                     <a th:href="@{/orders/edit/{id}(id=${order.id})}"
                        class="btn btn-warning btn-sm">
