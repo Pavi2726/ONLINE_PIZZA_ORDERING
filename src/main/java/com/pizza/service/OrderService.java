@@ -2,11 +2,12 @@ package com.pizza.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
-
+import java.time.Duration;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -115,6 +116,7 @@ BigDecimal total = discountedSubtotal
         .phone(dto.getPhone().trim())
         .status(DEFAULT_STATUS)
         .build();
+        order.setOrderTime(LocalDateTime.now());
         for (CartItem cartItem : cart.getCartItems()) {
 
     OrderItem orderItem = OrderItem.builder()
@@ -164,7 +166,13 @@ public Order findOrderById(Long orderId, Long customerId) {
     public List<Order> getOrderHistory(Long customerId) {
         return orderRepository.findAllByCustomerId(customerId);
    }
+private void validateEditWindow(Order order) {
 
+    if (Duration.between(order.getOrderTime(), LocalDateTime.now()).toMinutes() >= 5) {
+        throw new IllegalStateException(
+                "The 5-minute update window has expired. Please reorder to make any changes.");
+    }
+}
    
    
   @Transactional
@@ -237,7 +245,7 @@ public void increaseItemQuantity(Long orderId,
             .findByIdAndCustomerId(orderId, customerId)
             .orElseThrow(() ->
                     new ResourceNotFoundException("Order not found"));
-
+validateEditWindow(order);
     OrderItem orderItem = order.getOrderItems()
             .stream()
             .filter(item -> item.getId().equals(itemId))
@@ -269,7 +277,7 @@ public void decreaseItemQuantity(Long orderId,
             .findByIdAndCustomerId(orderId, customerId)
             .orElseThrow(() ->
                     new ResourceNotFoundException("Order not found"));
-
+validateEditWindow(order);
     OrderItem orderItem = order.getOrderItems()
             .stream()
             .filter(item -> item.getId().equals(itemId))
@@ -307,7 +315,7 @@ public void removeOrderItem(Long orderId,
             .findByIdAndCustomerId(orderId, customerId)
             .orElseThrow(() ->
                     new ResourceNotFoundException("Order not found"));
-
+validateEditWindow(order);
     // Prevent removing the last pizza
     if (order.getOrderItems().size() <= 1) {
         return;
@@ -367,7 +375,8 @@ public void addPizzaToOrder(Long orderId,
                             Long customerId) {
 
     Order order = findOrderById(orderId, customerId);
-
+    validateEditWindow(order);
+                            
     Pizza pizza = pizzaService.findById(pizzaId);
                                 if (!pizza.isAvailable()) {
     throw new IllegalStateException("Pizza is currently unavailable.");
@@ -423,7 +432,7 @@ public void updateOrderDetails(Long orderId,
             .findByIdAndCustomerId(orderId, customerId)
             .orElseThrow(() ->
                     new ResourceNotFoundException("Order not found"));
-
+validateEditWindow(order);
     order.setDeliveryAddress(deliveryAddress.trim());
     order.setPhone(phone.trim());
 

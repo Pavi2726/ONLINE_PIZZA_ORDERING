@@ -1,5 +1,7 @@
 package com.pizza.controller;
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.stereotype.Controller;
@@ -249,6 +251,15 @@ public String showEditOrderPage(@PathVariable Long orderId,
     }
 Order order = orderService.findOrderById(orderId, customer.getId());
 
+if (order.getOrderTime() == null ||
+    Duration.between(order.getOrderTime(), LocalDateTime.now()).toMinutes() >= 5) {
+
+    redirectAttributes.addFlashAttribute(
+            "errorMessage",
+            "The edit time for this order has expired. Please place a new order to make changes.");
+
+    return "redirect:/orders/history";
+}
 String editingAddress = (String) session.getAttribute("editingAddress");
 String editingPhone = (String) session.getAttribute("editingPhone");
 
