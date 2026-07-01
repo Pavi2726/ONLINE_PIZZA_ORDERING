@@ -29,8 +29,12 @@
                 <li class="nav-item">
                     <a class="nav-link" th:href="@{/pizzas}"><i class="bi bi-list-ul"></i> Pizzas</a>
                 </li>
+               
                 <li class="nav-item" th:if="${currentCustomer}">
-                    <a class="nav-link" th:href="@{/pizzas}"><i class="bi bi-bag-plus"></i> Place Order</a>
+                    <a class="nav-link" th:href="@{/cart}"><i class="bi bi-cart3"></i> Cart</a>
+                </li>
+                <li class="nav-item" th:if="${currentCustomer}">
+                    <a class="nav-link" th:href="@{/orders/history}"><i class="bi bi-clock-history"></i> Order History</a>
                 </li>
                 <li class="nav-item" th:unless="${currentCustomer}">
                     <a class="nav-link" th:href="@{/login}"><i class="bi bi-box-arrow-in-right"></i> Login</a>

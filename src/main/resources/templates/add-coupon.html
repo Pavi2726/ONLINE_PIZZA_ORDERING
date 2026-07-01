@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/admin-layout :: head('Add Coupon')}"></head>
+
+<body class="admin-body">
+
+<nav th:replace="~{fragments/admin-layout :: topbar}"></nav>
+
+<div class="offcanvas offcanvas-start admin-sidebar" tabindex="-1" id="adminSidebar">
+    <div class="offcanvas-header">
+        <h5 class="offcanvas-title">Menu</h5>
+        <button type="button" class="btn-close btn-close-white"
+                data-bs-dismiss="offcanvas"></button>
+    </div>
+
+    <div class="offcanvas-body">
+        <div th:replace="~{fragments/admin-layout :: sidebarLinks('coupons')}"></div>
+    </div>
+</div>
+
+<div class="container-fluid">
+    <div class="row">
+
+        <aside class="col-lg-2 d-none d-lg-block admin-sidebar py-3">
+            <div th:replace="~{fragments/admin-layout :: sidebarLinks('coupons')}"></div>
+        </aside>
+
+        <main class="col-lg-10 p-4">
+
+            <div th:replace="~{fragments/admin-layout :: alerts}"></div>
+
+            <div class="row justify-content-center">
+                <div class="col-lg-8">
+
+                    <div class="card shadow-sm">
+                        <div class="card-body p-4">
+
+                            <h2 class="fw-bold mb-4">
+                                <i class="bi bi-ticket-perforated"></i>
+                                Add Coupon
+                            </h2>
+
+                            <form th:action="@{/admin/coupons/add}"
+                                  th:object="${couponDTO}"
+                                  method="post">
+
+                                <div class="mb-3">
+
+                                    <label class="form-label">
+                                        Coupon Code
+                                    </label>
+
+                                    <input type="text"
+                                           class="form-control"
+                                           th:field="*{couponCode}"
+                                           th:classappend="${#fields.hasErrors('couponCode')} ? 'is-invalid'">
+
+                                    <div class="invalid-feedback"
+                                         th:errors="*{couponCode}">
+                                    </div>
+
+                                </div>
+
+                                <div class="mb-3">
+
+                                    <label class="form-label">
+                                        Discount Percentage
+                                    </label>
+
+                                    <input type="number"
+                                           class="form-control"
+                                           min="1"
+                                           max="100"
+                                           th:field="*{discountPercentage}"
+                                           th:classappend="${#fields.hasErrors('discountPercentage')} ? 'is-invalid'">
+
+                                    <div class="invalid-feedback"
+                                         th:errors="*{discountPercentage}">
+                                    </div>
+
+                                </div>
+
+                                <div class="form-check form-switch mb-4">
+
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           th:field="*{active}"
+                                           id="active">
+
+                                    <label class="form-check-label"
+                                           for="active">
+                                        Active Coupon
+                                    </label>
+
+                                </div>
+
+                                <button class="btn btn-success"
+                                        type="submit">
+
+                                    <i class="bi bi-check-circle"></i>
+
+                                    Save Coupon
+
+                                </button>
+
+                                <a th:href="@{/admin/coupons}"
+                                   class="btn btn-secondary">
+
+                                    Cancel
+
+                                </a>
+
+                            </form>
+
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </main>
+
+    </div>
+</div>
+
+<div th:replace="~{fragments/admin-layout :: scripts}"></div>
+
+</body>
+</html>

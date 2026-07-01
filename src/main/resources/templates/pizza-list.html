@@ -10,7 +10,6 @@
         <h2 class="fw-bold mb-0"><i class="bi bi-pizza"></i> Our Menu</h2>
     </div>
 
-    <!-- Search / Filter / Sort -->
     <form th:action="@{/pizzas}" method="get" class="row g-2 align-items-end mb-4 p-3 bg-light rounded">
         <div class="col-12 col-md-5">
             <label class="form-label small fw-semibold">Search by name</label>
@@ -46,7 +45,6 @@
         <p class="mt-2">No pizzas match your search.</p>
     </div>
 
-    <!-- Cards -->
     <div class="row g-4" id="pizzaGrid">
         <div class="col-12 col-sm-6 col-lg-4 col-xl-3 pizza-card-col" th:each="pizza : ${pizzas}">
             <div class="card h-100 pizza-card shadow-sm">
@@ -67,9 +65,55 @@
                        th:text="${pizza.description}">Description</p>
                     <div class="d-flex justify-content-between align-items-center mt-2">
                         <span class="fs-5 fw-bold text-danger"
-                              th:text="'₹' + ${#numbers.formatInteger(pizza.price, 1)}">₹0</span>
-                        <a th:if="${pizza.available}" th:href="@{/orders/new(pizzaId=${pizza.id})}"
-                           class="btn btn-sm btn-danger"><i class="bi bi-bag-plus"></i> Order</a>
+                              th:text="'₹' + ${#numbers.formatDecimal(pizza.price, 1, 2)}">₹0.00</span>
+                        
+                        <!-- Normal Shopping -->
+<form th:if="${pizza.available and orderId == null}"
+      th:action="@{/cart/add}"
+      method="post"
+      class="d-inline">
+
+    <input type="hidden"
+           name="pizzaId"
+           th:value="${pizza.id}" />
+
+    <input type="hidden"
+           name="quantity"
+           value="1" />
+
+    <button type="submit"
+            class="btn btn-sm btn-warning">
+
+        <i class="bi bi-cart-plus"></i>
+        Add to Cart
+
+    </button>
+
+</form>
+
+<!-- Edit Existing Order -->
+<form th:if="${pizza.available and orderId != null}"
+      th:action="@{/orders/edit/{orderId}/add-pizza(orderId=${orderId})}"
+      method="post"
+      class="d-inline">
+
+    <input type="hidden"
+           name="pizzaId"
+           th:value="${pizza.id}" />
+
+    <input type="hidden"
+           name="quantity"
+           value="1" />
+
+    <button type="submit"
+            class="btn btn-sm btn-primary">
+
+        🍕 Add to This Order
+
+    </button>
+
+</form>
+                        
                         <button th:unless="${pizza.available}" class="btn btn-sm btn-secondary" disabled>
                             Unavailable</button>
                     </div>

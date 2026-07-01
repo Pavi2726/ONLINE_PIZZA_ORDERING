@@ -1,14 +1,17 @@
 package com.pizza.controller;
 
-import com.pizza.entity.Pizza;
-import com.pizza.service.PizzaService;
 import java.util.List;
-import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+
+import com.pizza.entity.Pizza;
+import com.pizza.service.PizzaService;
+
+import lombok.RequiredArgsConstructor;
 
 /**
  * Customer-facing pizza browsing (US-003). This controller is strictly
@@ -29,6 +32,7 @@ public class PizzaController {
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String sort,
+            @RequestParam(required = false) Long orderId,
             Model model) {
         List<Pizza> pizzas = pizzaService.search(search, category, sort);
         model.addAttribute("pizzas", pizzas);
@@ -36,6 +40,7 @@ public class PizzaController {
         model.addAttribute("search", search);
         model.addAttribute("selectedCategory", category);
         model.addAttribute("sort", sort);
+        model.addAttribute("orderId", orderId);
         return "pizza-list";
     }
 }

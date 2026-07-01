@@ -1,15 +1,9 @@
 package com.pizza.controller;
+import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.List;
 
-import com.pizza.dto.OrderDTO;
-import com.pizza.entity.Customer;
-import com.pizza.entity.Order;
-import com.pizza.entity.Pizza;
-import com.pizza.service.OrderService;
-import com.pizza.service.PizzaService;
-import com.pizza.util.SessionUtil;
-import jakarta.servlet.http.HttpSession;
-import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -21,6 +15,21 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import com.pizza.dto.OrderDTO;
+import com.pizza.entity.Cart;
+import com.pizza.entity.Coupon;
+import com.pizza.entity.Customer;
+import com.pizza.entity.Order;
+import com.pizza.entity.Pizza;
+import com.pizza.service.CartService;
+import com.pizza.service.OrderService;
+import com.pizza.service.PizzaService;
+import com.pizza.util.SessionUtil;
+
+import jakarta.servlet.http.HttpSession;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+
 /**
  * Order placement and confirmation (US-007). Requires a logged-in customer.
  */
@@ -31,6 +40,7 @@ public class OrderController {
 
     private final OrderService orderService;
     private final PizzaService pizzaService;
+    private final CartService cartService;
 
     /** Shows the order form pre-filled from the logged-in customer. */
     @GetMapping("/new")
@@ -54,8 +64,6 @@ public class OrderController {
             return "redirect:/pizzas";
         }
         OrderDTO orderDTO = new OrderDTO();
-        orderDTO.setPizzaId(pizzaId);
-        orderDTO.setQuantity(1);
         orderDTO.setDeliveryAddress(customer.getAddress());
         orderDTO.setPhone(customer.getPhone());
 
@@ -81,7 +89,6 @@ public class OrderController {
         }
 
         if (bindingResult.hasErrors()) {
-            model.addAttribute("pizza", pizzaService.findById(orderDTO.getPizzaId()));
             return "place-order";
         }
 
@@ -107,4 +114,314 @@ public class OrderController {
         model.addAttribute("order", order);
         return "order-success";
     }
+    @GetMapping("/history")
+public String viewOrderHistory(
+        HttpSession session,
+        Model model,
+        RedirectAttributes redirectAttributes) {
+
+    Customer customer = SessionUtil.getCurrentCustomer(session);
+
+    if (customer == null) {
+        redirectAttributes.addFlashAttribute(
+                "errorMessage",
+                "Please log in to view your order history.");
+        return "redirect:/login";
+    }
+
+    List<Order> orders = orderService.getOrderHistory(customer.getId());
+
+    model.addAttribute("orders", orders);
+
+    return "order-history";
+}
+@PostMapping("/cancel/{orderId}")
+public String cancelOrder(
+        @PathVariable Long orderId,
+        HttpSession session,
+        RedirectAttributes redirectAttributes) {
+
+    Customer customer = SessionUtil.getCurrentCustomer(session);
+
+    if (customer == null) {
+        redirectAttributes.addFlashAttribute(
+                "errorMessage",
+                "Please log in first.");
+        return "redirect:/login";
+    }
+
+    orderService.cancelOrder(orderId, customer.getId());
+
+    redirectAttributes.addFlashAttribute(
+            "successMessage",
+            "Order cancelled successfully.");
+
+    return "redirect:/orders/history";
+}
+@GetMapping("/checkout")
+public String checkout(HttpSession session,
+                       Model model,
+                       RedirectAttributes redirectAttributes) {
+
+    Customer customer = SessionUtil.getCurrentCustomer(session);
+
+    if (customer == null) {
+        return "redirect:/login";
+    }
+
+    Cart cart = cartService.getCart(customer.getEmail());
+
+    if (cart.getCartItems().isEmpty()) {
+
+        redirectAttributes.addFlashAttribute(
+                "errorMessage",
+                "Your cart is empty.");
+
+        return "redirect:/cart";
+    }
+
+    BigDecimal subtotal = cartService.getCartSubtotal(customer.getEmail());
+
+    Coupon coupon = (Coupon) session.getAttribute("appliedCoupon");
+
+    BigDecimal discount = BigDecimal.ZERO;
+
+    if (coupon != null) {
+
+        discount = subtotal
+                .multiply(BigDecimal.valueOf(coupon.getDiscountPercentage()))
+                .divide(BigDecimal.valueOf(100));
+    }
+
+    BigDecimal grandTotal = subtotal.subtract(discount);
+
+    model.addAttribute("cart", cart);
+    model.addAttribute("subtotal", subtotal);
+    model.addAttribute("discount", discount);
+    model.addAttribute("grandTotal", grandTotal);
+    model.addAttribute("appliedCoupon", coupon);
+
+    return "checkout";
+}
+@PostMapping("/place")
+public String placeCartOrder(HttpSession session,
+                             RedirectAttributes redirectAttributes) {
+
+    Customer customer = SessionUtil.getCurrentCustomer(session);
+
+    if (customer == null) {
+        redirectAttributes.addFlashAttribute(
+                "errorMessage",
+                "Please log in first.");
+        return "redirect:/login";
+    }
+
+    OrderDTO dto = new OrderDTO();
+    dto.setDeliveryAddress(customer.getAddress());
+    dto.setPhone(customer.getPhone());
+
+    Coupon coupon = (Coupon) session.getAttribute("appliedCoupon");
+    if (coupon != null) {
+        dto.setCouponCode(coupon.getCouponCode());
+    }
+
+    Order order = orderService.placeOrder(dto, customer);
+
+    session.removeAttribute("appliedCoupon");
+
+    redirectAttributes.addFlashAttribute(
+            "successMessage",
+            "Order placed successfully!");
+
+    return "redirect:/orders/success/" + order.getOrderNumber();
+}
+@GetMapping("/edit/{orderId}")
+public String showEditOrderPage(@PathVariable Long orderId,
+                                HttpSession session,
+                                Model model,
+                                RedirectAttributes redirectAttributes) {
+
+    Customer customer = SessionUtil.getCurrentCustomer(session);
+
+    if (customer == null) {
+        redirectAttributes.addFlashAttribute(
+                "errorMessage",
+                "Please login first.");
+        return "redirect:/login";
+    }
+Order order = orderService.findOrderById(orderId, customer.getId());
+
+if (order.getOrderTime() == null ||
+    Duration.between(order.getOrderTime(), LocalDateTime.now()).toMinutes() >= 5) {
+
+    redirectAttributes.addFlashAttribute(
+            "errorMessage",
+            "The edit time for this order has expired. Please place a new order to make changes.");
+
+    return "redirect:/orders/history";
+}
+String editingAddress = (String) session.getAttribute("editingAddress");
+String editingPhone = (String) session.getAttribute("editingPhone");
+
+if (editingAddress != null) {
+    order.setDeliveryAddress(editingAddress);
+}
+
+if (editingPhone != null) {
+    order.setPhone(editingPhone);
+}
+
+model.addAttribute("order", order);
+
+return "edit-order";
+} 
+@PostMapping("/edit/{orderId}/increase/{itemId}")
+public String increaseQuantity(@PathVariable Long orderId,
+                               @PathVariable Long itemId,
+                               @RequestParam(required = false) String deliveryAddress,
+                               @RequestParam(required = false) String phone,
+                               HttpSession session,
+                               RedirectAttributes redirectAttributes) {
+
+    Customer customer = SessionUtil.getCurrentCustomer(session);
+
+    if (customer == null) {
+        redirectAttributes.addFlashAttribute("errorMessage", "Please login first.");
+        return "redirect:/login";
+    }
+if (deliveryAddress != null) {
+    session.setAttribute("editingAddress", deliveryAddress);
+}
+
+if (phone != null) {
+    session.setAttribute("editingPhone", phone);
+}
+    orderService.increaseItemQuantity(orderId, itemId, customer.getId());
+redirectAttributes.addFlashAttribute(
+        "successMessage",
+        "Pizza quantity updated successfully.");
+
+    return "redirect:/orders/edit/" + orderId;
+}
+
+@PostMapping("/edit/{orderId}/decrease/{itemId}")
+public String decreaseQuantity(@PathVariable Long orderId,
+                               @PathVariable Long itemId,
+                               @RequestParam(required = false) String deliveryAddress,
+                               @RequestParam(required = false) String phone,
+                               HttpSession session,
+                               RedirectAttributes redirectAttributes) {
+
+    Customer customer = SessionUtil.getCurrentCustomer(session);
+
+    if (customer == null) {
+        redirectAttributes.addFlashAttribute("errorMessage", "Please login first.");
+        return "redirect:/login";
+    }
+
+    if (deliveryAddress != null) {
+        session.setAttribute("editingAddress", deliveryAddress);
+    }
+
+    if (phone != null) {
+        session.setAttribute("editingPhone", phone);
+    }
+
+    orderService.decreaseItemQuantity(orderId, itemId, customer.getId());
+
+    return "redirect:/orders/edit/" + orderId;
+}@PostMapping("/edit/{orderId}/add-pizza")
+public String addPizzaToOrder(@PathVariable Long orderId,
+                              @RequestParam Long pizzaId,
+                              @RequestParam(defaultValue = "1") Integer quantity,
+                              @RequestParam(required = false) String deliveryAddress,
+                              @RequestParam(required = false) String phone,
+                              HttpSession session,
+                              RedirectAttributes redirectAttributes) {
+
+    Customer customer = SessionUtil.getCurrentCustomer(session);
+
+    if (customer == null) {
+        redirectAttributes.addFlashAttribute(
+                "errorMessage",
+                "Please login first.");
+        return "redirect:/login";
+    }
+
+    if (deliveryAddress != null) {
+        session.setAttribute("editingAddress", deliveryAddress);
+    }
+
+    if (phone != null) {
+        session.setAttribute("editingPhone", phone);
+    }
+
+    orderService.addPizzaToOrder(
+            orderId,
+            pizzaId,
+            quantity,
+            customer.getId());
+
+    redirectAttributes.addFlashAttribute(
+            "successMessage",
+            "Pizza added to the order successfully.");
+
+    return "redirect:/orders/edit/" + orderId;
+}
+@PostMapping("/edit/{orderId}")
+public String updateOrder(@PathVariable Long orderId,
+                          @RequestParam String deliveryAddress,
+                          @RequestParam String phone,
+                          HttpSession session,
+                          RedirectAttributes redirectAttributes) {
+
+    Customer customer = SessionUtil.getCurrentCustomer(session);
+
+    if (customer == null) {
+        redirectAttributes.addFlashAttribute(
+                "errorMessage",
+                "Please login first.");
+        return "redirect:/login";
+    }
+
+    orderService.updateOrderDetails(
+            orderId,
+            deliveryAddress,
+            phone,
+            customer.getId());
+
+    redirectAttributes.addFlashAttribute(
+            "successMessage",
+            "Order updated successfully.");
+session.removeAttribute("editingAddress");
+session.removeAttribute("editingPhone");
+    return "redirect:/orders/history";
+}
+@PostMapping("/edit/{orderId}/remove/{itemId}")
+public String removeItem(@PathVariable Long orderId,
+                         @PathVariable Long itemId,
+                         @RequestParam(required = false) String deliveryAddress,
+                         @RequestParam(required = false) String phone,
+                         HttpSession session,
+                         RedirectAttributes redirectAttributes) {
+
+    Customer customer = SessionUtil.getCurrentCustomer(session);
+
+    if (customer == null) {
+        redirectAttributes.addFlashAttribute("errorMessage", "Please login first.");
+        return "redirect:/login";
+    }
+
+    if (deliveryAddress != null) {
+        session.setAttribute("editingAddress", deliveryAddress);
+    }
+
+    if (phone != null) {
+        session.setAttribute("editingPhone", phone);
+    }
+
+    orderService.removeOrderItem(orderId, itemId, customer.getId());
+
+    return "redirect:/orders/edit/" + orderId;
+}
 }

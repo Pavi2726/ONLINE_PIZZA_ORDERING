@@ -38,13 +38,12 @@
                     <h5 class="card-title fw-semibold" th:text="${pizza.name}">Pizza</h5>
                     <p class="card-text small text-muted flex-grow-1"
                        th:text="${#strings.abbreviate(pizza.description, 70)}">Description</p>
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span class="fw-bold text-danger"
-                              th:text="'₹' + ${#numbers.formatInteger(pizza.price, 1)}">₹0</span>
-                        <a th:href="@{/orders/new(pizzaId=${pizza.id})}" class="btn btn-sm btn-danger">
-                            <i class="bi bi-bag-plus"></i> Order
-                        </a>
-                    </div>
+                    <div class="text-start">
+    <span class="fw-bold text-danger"
+          th:text="'₹' + ${#numbers.formatDecimal(pizza.price, 1, 2)}">
+        ₹0.00
+    </span>
+</div>
                 </div>
             </div>
         </div>

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="~{fragments/admin-layout :: head('Manage Coupons')}"></head>
+
+<body class="admin-body">
+
+    <!-- Top Navigation -->
+    <nav th:replace="~{fragments/admin-layout :: topbar}"></nav>
+
+    <!-- Mobile Sidebar -->
+    <div class="offcanvas offcanvas-start admin-sidebar" tabindex="-1" id="adminSidebar">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title">Menu</h5>
+            <button type="button" class="btn-close btn-close-white"
+                data-bs-dismiss="offcanvas"></button>
+        </div>
+
+        <div class="offcanvas-body">
+            <div th:replace="~{fragments/admin-layout :: sidebarLinks('coupons')}"></div>
+        </div>
+    </div>
+
+    <div class="container-fluid">
+
+        <div class="row">
+
+            <!-- Desktop Sidebar -->
+            <aside class="col-lg-2 d-none d-lg-block admin-sidebar py-3">
+                <div th:replace="~{fragments/admin-layout :: sidebarLinks('coupons')}"></div>
+            </aside>
+
+            <!-- Main Content -->
+            <main class="col-lg-10 p-4">
+
+                <!-- Success / Error Messages -->
+                <div th:replace="~{fragments/admin-layout :: alerts}"></div>
+
+                <!-- Page Heading -->
+                <div class="d-flex justify-content-between align-items-center mb-4">
+
+                    <h2 class="fw-bold">
+                        <i class="bi bi-ticket-perforated"></i>
+                        Manage Coupons
+                    </h2>
+
+                    <a th:href="@{/admin/coupons/add}" class="btn btn-success">
+                        <i class="bi bi-plus-circle"></i>
+                        Add Coupon
+                    </a>
+
+                </div>
+
+                <!-- Coupon Table -->
+                <table class="table table-bordered table-hover">
+
+                    <thead class="table-dark">
+
+                        <tr>
+                            <th>ID</th>
+                            <th>Coupon Code</th>
+                            <th>Discount (%)</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+
+                    </thead>
+
+                    <tbody>
+
+                        <tr th:each="coupon : ${coupons}">
+
+                            <td th:text="${coupon.id}"></td>
+
+                            <td th:text="${coupon.couponCode}"></td>
+
+                            <td>
+                                <span th:text="${coupon.discountPercentage}"></span>%
+                            </td>
+
+                            <td>
+
+                                <span class="badge bg-success"
+                                    th:if="${coupon.active}">
+                                    Active
+                                </span>
+
+                                <span class="badge bg-danger"
+                                    th:unless="${coupon.active}">
+                                    Inactive
+                                </span>
+
+                            </td>
+
+                            <td>
+
+                                <!-- Edit Button -->
+                                <a th:href="@{/admin/coupons/edit/{id}(id=${coupon.id})}"
+                                    class="btn btn-sm btn-primary me-2">
+
+                                    <i class="bi bi-pencil-square"></i>
+                                    Edit
+
+                                </a>
+
+                                <!-- Delete Button -->
+                                <form th:action="@{/admin/coupons/delete/{id}(id=${coupon.id})}"
+                                    method="post"
+                                    style="display:inline;">
+
+                                    <button type="submit"
+                                        class="btn btn-sm btn-danger"
+                                        onclick="return confirm('Are you sure you want to delete this coupon?');">
+
+                                        <i class="bi bi-trash"></i>
+                                        Delete
+
+                                    </button>
+
+                                </form>
+
+                            </td>
+
+                        </tr>
+
+                    </tbody>
+
+                </table>
+
+            </main>
+
+        </div>
+
+    </div>
+
+    <!-- Bootstrap Scripts -->
+    <div th:replace="~{fragments/admin-layout :: scripts}"></div>
+
+</body>
+
+</html>

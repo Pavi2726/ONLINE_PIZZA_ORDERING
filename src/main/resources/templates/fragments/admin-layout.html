@@ -41,6 +41,10 @@
         <a class="nav-link" th:classappend="${active == 'manage'} ? 'active'"
            th:href="@{/admin/pizzas}"><i class="bi bi-card-list"></i> Manage Pizzas</a>
     </li>
+    <li class="nav-item">
+        <a class="nav-link" th:classappend="${active == 'coupons'} ? 'active'"
+           th:href="@{/admin/coupons}"><i class="bi bi-ticket-perforated"></i> Manage Coupons</a>
+    </li>
     <li class="nav-item mt-2">
         <a class="nav-link text-warning" th:href="@{/admin/logout}">
             <i class="bi bi-box-arrow-right"></i> Logout</a>

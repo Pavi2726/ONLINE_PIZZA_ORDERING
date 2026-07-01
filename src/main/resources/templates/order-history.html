@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Order History')}"></head>
+<body>
+
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<div th:replace="~{fragments/layout :: alerts}"></div>
+
+<section class="container my-5">
+
+    <h2 class="mb-4">
+        <i class="bi bi-clock-history"></i>
+        My Order History
+    </h2>
+
+    <div th:if="${#lists.isEmpty(orders)}" class="alert alert-info">
+        You haven't placed any orders yet.
+    </div>
+
+    <div th:unless="${#lists.isEmpty(orders)}">
+
+        <div class="card shadow-sm mb-3" th:each="order : ${orders}">
+
+            <div class="card-body">
+
+                <div class="row">
+
+                    <div class="col-md-8">
+
+                      
+                        <h5 class="fw-bold mb-3">
+    Ordered Items
+</h5>
+
+<table class="table table-bordered table-sm">
+
+    <thead class="table-light">
+        <tr>
+            <th>Pizza</th>
+            <th>Qty</th>
+            <th>Price</th>
+            <th>Total</th>
+        </tr>
+    </thead>
+
+    <tbody>
+
+        <tr th:each="item : ${order.orderItems}">
+
+            <td th:text="${item.pizza.name}"></td>
+
+            <td th:text="${item.quantity}"></td>
+
+            <td>
+                ₹<span th:text="${item.price}"></span>
+            </td>
+
+            <td>
+                ₹<span th:text="${item.lineTotal}"></span>
+            </td>
+
+        </tr>
+
+    </tbody>
+
+</table>
+                        <p class="mb-1">
+                            <strong>Order Number:</strong>
+                            <span th:text="${order.orderNumber}"></span>
+                        </p>
+
+                       
+
+                        <p class="mb-1">
+    <strong>Subtotal:</strong>
+    ₹<span th:text="${order.subtotal}"></span>
+</p>
+
+<div th:if="${order.discountAmount != null}">
+
+    <p class="mb-1 text-success">
+        <strong>Discount:</strong>
+        -₹<span th:text="${order.discountAmount}"></span>
+    </p>
+
+</div>
+
+<p class="mb-1">
+    <strong>Tax:</strong>
+    ₹<span th:text="${order.tax}"></span>
+</p>
+
+<p class="mb-1 fw-bold">
+    <strong>Grand Total:</strong>
+    ₹<span th:text="${order.totalAmount}"></span>
+</p>
+                        <div th:if="${order.couponCode != null}" class="mb-1">
+
+    <strong>Coupon:</strong>
+
+    <span class="badge bg-success"
+          th:text="${order.couponCode}">
+    </span>
+
+    <span class="text-success ms-2">
+        (<span th:text="${order.discountPercentage}"></span>% OFF)
+    </span>
+
+    <br>
+
+    <small class="text-success">
+        Saved ₹<span th:text="${#numbers.formatDecimal(order.discountAmount,1,2)}"></span>
+    </small>
+
+</div>
+                        <p class="mb-1">
+                            <strong>Status:</strong>
+
+                            <!-- PLACED -->
+                            <span th:if="${order.status == 'PLACED'}"
+                                  class="badge bg-warning text-dark">
+                                PLACED
+                            </span>
+
+                            <!-- CANCELLED -->
+                            <span th:if="${order.status == 'CANCELLED'}"
+                                  class="badge bg-danger">
+                                CANCELLED
+                            </span>
+
+                        </p>
+
+                       <p class="text-muted mb-0">
+
+    <strong th:text="${order.updatedAt != null ? 'Updated On:' : 'Ordered On:'}">
+        Ordered On:
+    </strong>
+
+    <span th:text="${#temporals.format(
+        order.updatedAt != null ? order.updatedAt : order.createdAt,
+        'dd MMM yyyy, HH:mm:ss')}">
+    </span>
+
+</p>
+
+                    </div>
+
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="d-flex justify-content-end gap-2 mt-3"
+                     th:if="${order.status == 'PLACED'}">
+                    <a th:href="@{/orders/success/{orderNumber}(orderNumber=${order.orderNumber})}"
+   class="btn btn-info btn-sm">
+    <i class="bi bi-eye"></i>
+    View Details
+</a>
+                    <!-- Edit -->
+                    <a th:href="@{/orders/edit/{id}(id=${order.id})}"
+                       class="btn btn-warning btn-sm">
+                        <i class="bi bi-pencil-square"></i>
+                        Edit Order
+                    </a>
+
+                    <!-- Cancel -->
+                    <form th:action="@{/orders/cancel/{id}(id=${order.id})}"
+                          method="post">
+
+                        <button type="submit"
+                                class="btn btn-danger btn-sm"
+                                onclick="return confirm('Are you sure you want to cancel this order?');">
+
+                            <i class="bi bi-x-circle"></i>
+                            Cancel Order
+
+                        </button>
+
+                    </form>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</section>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<div th:replace="~{fragments/layout :: scripts}"></div>
+
+</body>
+</html>
