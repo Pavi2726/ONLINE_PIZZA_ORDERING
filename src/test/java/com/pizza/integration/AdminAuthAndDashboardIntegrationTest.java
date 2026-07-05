@@ -106,6 +106,16 @@ class AdminAuthAndDashboardIntegrationTest extends AbstractIntegrationTest {
     @Test
     void dashboard_reflectsRealH2SeededPizzaCounts() throws Exception {
         Admin admin = seedAdmin();
+
+        // Baseline counts, taken from the real H2 table as it stands right now.
+        // The pizzas table is shared across the suite (other tests may have left
+        // committed rows behind), so the dashboard must be verified against a
+        // known delta on top of whatever is already there rather than an
+        // absolute hardcoded total - see PizzaService#countAll/countAvailable.
+        long baselineTotal = pizzaRepository.count();
+        long baselineAvailable = pizzaRepository.findByAvailableTrue().size();
+        long baselineOutOfStock = baselineTotal - baselineAvailable;
+
         pizzaRepository.saveAndFlush(TestDataFactory.pizza("Available One", new BigDecimal("9.00"), "Classic", true));
         pizzaRepository.saveAndFlush(TestDataFactory.pizza("Available Two", new BigDecimal("11.00"), "Classic", true));
         pizzaRepository.saveAndFlush(TestDataFactory.pizza("Out Of Stock", new BigDecimal("13.00"), "Classic", false));
@@ -116,9 +126,9 @@ class AdminAuthAndDashboardIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/admin/dashboard").session(session))
                 .andExpect(status().isOk())
                 .andExpect(view().name("admin-dashboard"))
-                .andExpect(model().attribute("totalPizzas", 3L))
-                .andExpect(model().attribute("availablePizzas", 2L))
-                .andExpect(model().attribute("outOfStockPizzas", 1L));
+                .andExpect(model().attribute("totalPizzas", baselineTotal + 3L))
+                .andExpect(model().attribute("availablePizzas", baselineAvailable + 2L))
+                .andExpect(model().attribute("outOfStockPizzas", baselineOutOfStock + 1L));
     }
 
     // ------------------------------------------------- session independence
