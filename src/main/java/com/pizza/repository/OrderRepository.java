@@ -54,4 +54,24 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     boolean existsByOrderNumber(String orderNumber);
 
+    @Query("""
+            SELECT DISTINCT o
+            FROM Order o
+            LEFT JOIN FETCH o.orderItems oi
+            LEFT JOIN FETCH oi.pizza
+            JOIN FETCH o.customer
+            ORDER BY o.createdAt DESC
+            """)
+    List<Order> findAllOrdered();
+
+    @Query("""
+            SELECT DISTINCT o
+            FROM Order o
+            LEFT JOIN FETCH o.orderItems oi
+            LEFT JOIN FETCH oi.pizza
+            JOIN FETCH o.customer
+            WHERE o.id = :orderId
+            """)
+    Optional<Order> findByIdWithDetails(@Param("orderId") Long orderId);
+
 }

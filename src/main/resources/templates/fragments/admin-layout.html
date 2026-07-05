@@ -45,6 +45,14 @@
         <a class="nav-link" th:classappend="${active == 'coupons'} ? 'active'"
            th:href="@{/admin/coupons}"><i class="bi bi-ticket-perforated"></i> Manage Coupons</a>
     </li>
+    <li class="nav-item">
+        <a class="nav-link" th:classappend="${active == 'customers'} ? 'active'"
+           th:href="@{/admin/customers}"><i class="bi bi-people"></i> Manage Customers</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" th:classappend="${active == 'orders'} ? 'active'"
+           th:href="@{/admin/orders}"><i class="bi bi-receipt"></i> Manage Orders</a>
+    </li>
     <li class="nav-item mt-2">
         <a class="nav-link text-warning" th:href="@{/admin/logout}">
             <i class="bi bi-box-arrow-right"></i> Logout</a>

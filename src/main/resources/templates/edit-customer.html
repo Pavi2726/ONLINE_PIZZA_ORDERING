@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="~{fragments/admin-layout :: head('Edit Customer')}"></head>
+
+<body class="admin-body">
+
+<nav th:replace="~{fragments/admin-layout :: topbar}"></nav>
+
+<!-- Mobile Sidebar -->
+<div class="offcanvas offcanvas-start admin-sidebar" tabindex="-1" id="adminSidebar">
+    <div class="offcanvas-header">
+        <h5 class="offcanvas-title">Menu</h5>
+        <button type="button" class="btn-close btn-close-white"
+                data-bs-dismiss="offcanvas"></button>
+    </div>
+
+    <div class="offcanvas-body">
+        <div th:replace="~{fragments/admin-layout :: sidebarLinks('customers')}"></div>
+    </div>
+</div>
+
+<div class="container-fluid">
+
+    <div class="row">
+
+        <!-- Desktop Sidebar -->
+        <aside class="col-lg-2 d-none d-lg-block admin-sidebar py-3">
+            <div th:replace="~{fragments/admin-layout :: sidebarLinks('customers')}"></div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="col-lg-10 p-4">
+
+            <div th:replace="~{fragments/admin-layout :: alerts}"></div>
+
+            <div class="row justify-content-center">
+
+                <div class="col-lg-8">
+
+                    <div class="card shadow-sm">
+
+                        <div class="card-body p-4">
+
+                            <h2 class="fw-bold mb-4">
+                                <i class="bi bi-pencil-square"></i>
+                                Edit Customer
+                            </h2>
+
+                            <form th:action="@{/admin/customers/update/{id}(id=${customerId})}"
+                                  th:object="${customerDTO}"
+                                  method="post">
+
+                                <div class="row">
+
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">First Name</label>
+                                        <input type="text"
+                                               class="form-control"
+                                               th:field="*{firstName}"
+                                               th:classappend="${#fields.hasErrors('firstName')} ? 'is-invalid'">
+                                        <div class="invalid-feedback" th:errors="*{firstName}"></div>
+                                    </div>
+
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Last Name</label>
+                                        <input type="text"
+                                               class="form-control"
+                                               th:field="*{lastName}"
+                                               th:classappend="${#fields.hasErrors('lastName')} ? 'is-invalid'">
+                                        <div class="invalid-feedback" th:errors="*{lastName}"></div>
+                                    </div>
+
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Email</label>
+                                    <input type="email"
+                                           class="form-control"
+                                           th:field="*{email}"
+                                           th:classappend="${#fields.hasErrors('email')} ? 'is-invalid'">
+                                    <div class="invalid-feedback" th:errors="*{email}"></div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Phone</label>
+                                    <input type="text"
+                                           class="form-control"
+                                           th:field="*{phone}"
+                                           th:classappend="${#fields.hasErrors('phone')} ? 'is-invalid'">
+                                    <div class="invalid-feedback" th:errors="*{phone}"></div>
+                                </div>
+
+                                <div class="mb-4">
+                                    <label class="form-label">Address</label>
+                                    <textarea class="form-control"
+                                              rows="2"
+                                              th:field="*{address}"
+                                              th:classappend="${#fields.hasErrors('address')} ? 'is-invalid'"></textarea>
+                                    <div class="invalid-feedback" th:errors="*{address}"></div>
+                                </div>
+
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-check-circle"></i>
+                                    Update Customer
+                                </button>
+
+                                <a th:href="@{/admin/customers}" class="btn btn-secondary">
+                                    Cancel
+                                </a>
+
+                            </form>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </main>
+
+    </div>
+
+</div>
+
+<div th:replace="~{fragments/admin-layout :: scripts}"></div>
+
+</body>
+
+</html>

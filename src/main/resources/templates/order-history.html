@@ -122,6 +122,24 @@
                                 PLACED
                             </span>
 
+                            <!-- PROCESSING -->
+                            <span th:if="${order.status == 'PROCESSING'}"
+                                  class="badge bg-info text-dark">
+                                PROCESSING
+                            </span>
+
+                            <!-- OUT_FOR_DELIVERY -->
+                            <span th:if="${order.status == 'OUT_FOR_DELIVERY'}"
+                                  class="badge bg-primary">
+                                OUT FOR DELIVERY
+                            </span>
+
+                            <!-- DELIVERED -->
+                            <span th:if="${order.status == 'DELIVERED'}"
+                                  class="badge bg-success">
+                                DELIVERED
+                            </span>
+
                             <!-- CANCELLED -->
                             <span th:if="${order.status == 'CANCELLED'}"
                                   class="badge bg-danger">
