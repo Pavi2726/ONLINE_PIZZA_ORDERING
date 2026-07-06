@@ -1,5 +1,6 @@
 package com.pizza.service;
 
+import java.util.Comparator;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -24,6 +25,31 @@ public class AdminCustomerService {
     @Transactional(readOnly = true)
     public List<Customer> findAll() {
         return customerRepository.findAll();
+    }
+
+    /**
+     * Admin customer-list query supporting search-by-name-or-email and sort
+     * (US-015), mirroring {@code PizzaService.search}'s branch-in-Java style.
+     *
+     * @param search optional name/email fragment
+     * @param sort   "nameAsc", "nameDesc", "registeredAsc", "registeredDesc" or null
+     */
+    @Transactional(readOnly = true)
+    public List<Customer> search(String search, String sort) {
+        List<Customer> results = (search != null && !search.isBlank())
+                ? customerRepository.searchByNameOrEmail(search.trim())
+                : customerRepository.findAll();
+
+        if ("nameAsc".equals(sort)) {
+            results.sort(Comparator.comparing(c -> c.getFullName().toLowerCase()));
+        } else if ("nameDesc".equals(sort)) {
+            results.sort(Comparator.comparing((Customer c) -> c.getFullName().toLowerCase()).reversed());
+        } else if ("registeredAsc".equals(sort)) {
+            results.sort(Comparator.comparing(Customer::getCreatedAt));
+        } else if ("registeredDesc".equals(sort)) {
+            results.sort(Comparator.comparing(Customer::getCreatedAt).reversed());
+        }
+        return results;
     }
 
     @Transactional(readOnly = true)

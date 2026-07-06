@@ -6,6 +6,7 @@ import com.pizza.repository.CustomerRepository;
 import com.pizza.testsupport.TestDataFactory;
 import com.pizza.util.SessionUtil;
 import jakarta.persistence.EntityManager;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mock.web.MockHttpSession;
@@ -61,6 +62,19 @@ class AdminCustomerManagementIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(model().attribute("customers", hasItems(
                         hasProperty("email", is(customer1.getEmail())),
                         hasProperty("email", is(customer2.getEmail())))));
+    }
+
+    @Test
+    void list_withSearchParam_filtersToMatchingCustomerOnly() throws Exception {
+        Customer match = customerRepository.saveAndFlush(
+                TestDataFactory.customer("Zelda", "Uniquename", "Passw0rd!", "3 Unique Ave"));
+        customerRepository.saveAndFlush(TestDataFactory.customer());
+        customerRepository.saveAndFlush(TestDataFactory.customer());
+
+        mockMvc.perform(get("/admin/customers").param("search", "Zelda").session(adminSession()))
+                .andExpect(status().isOk())
+                .andExpect(view().name("admin-customer-list"))
+                .andExpect(model().attribute("customers", List.of(match)));
     }
 
     // -------------------------------------------------------------------- edit

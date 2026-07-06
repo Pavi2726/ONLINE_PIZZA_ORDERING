@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import com.pizza.dto.CustomerUpdateDTO;
@@ -26,11 +27,15 @@ public class AdminCustomerController {
 
     private final AdminCustomerService adminCustomerService;
 
-    // List All Customers
+    // List All Customers, with optional search/sort (US-015)
     @GetMapping
-    public String list(Model model) {
-        List<Customer> customers = adminCustomerService.findAll();
+    public String list(@RequestParam(required = false) String search,
+                        @RequestParam(required = false) String sort,
+                        Model model) {
+        List<Customer> customers = adminCustomerService.search(search, sort);
         model.addAttribute("customers", customers);
+        model.addAttribute("search", search);
+        model.addAttribute("sort", sort);
         return "admin-customer-list";
     }
 

@@ -36,6 +36,31 @@
 
                 </div>
 
+                <!-- Search / Sort -->
+                <form th:action="@{/admin/customers}" method="get" class="row g-2 align-items-end mb-3 p-3 bg-light rounded">
+                    <div class="col-12 col-md-6">
+                        <label class="form-label small fw-semibold">Search by name or email</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input type="text" name="search" class="form-control" th:value="${search}"
+                                   placeholder="e.g. jane@example.com">
+                        </div>
+                    </div>
+                    <div class="col-8 col-md-4">
+                        <label class="form-label small fw-semibold">Sort</label>
+                        <select name="sort" class="form-select">
+                            <option value="">Default</option>
+                            <option value="nameAsc" th:selected="${sort == 'nameAsc'}">Name (A-Z)</option>
+                            <option value="nameDesc" th:selected="${sort == 'nameDesc'}">Name (Z-A)</option>
+                            <option value="registeredAsc" th:selected="${sort == 'registeredAsc'}">Oldest first</option>
+                            <option value="registeredDesc" th:selected="${sort == 'registeredDesc'}">Newest first</option>
+                        </select>
+                    </div>
+                    <div class="col-4 col-md-2 d-grid">
+                        <button type="submit" class="btn btn-danger"><i class="bi bi-funnel"></i> Filter</button>
+                    </div>
+                </form>
+
                 <!-- Customer Table -->
                 <table class="table table-bordered table-hover">
 

@@ -83,12 +83,35 @@ class AdminCustomerControllerTest {
         Customer customer = TestDataFactory.customer();
         customer.setId(1L);
         customer.setCreatedAt(LocalDateTime.now());
-        when(adminCustomerService.findAll()).thenReturn(List.of(customer));
+        // No query params -> controller must call search(null, null), which
+        // AdminCustomerService.search reproduces findAll()'s exact output for.
+        when(adminCustomerService.search(null, null)).thenReturn(List.of(customer));
 
         mockMvc.perform(request(HttpMethod.GET, "/admin/customers").session(adminSession()))
                 .andExpect(status().isOk())
                 .andExpect(view().name("admin-customer-list"))
-                .andExpect(model().attribute("customers", List.of(customer)));
+                .andExpect(model().attribute("customers", List.of(customer)))
+                .andExpect(model().attribute("search", (Object) null))
+                .andExpect(model().attribute("sort", (Object) null));
+    }
+
+    @Test
+    void list_withSearchAndSortParams_bindsParamsThroughToServiceAndModel() throws Exception {
+        Customer customer = TestDataFactory.customer();
+        customer.setId(1L);
+        when(adminCustomerService.search("jane", "nameAsc")).thenReturn(List.of(customer));
+
+        mockMvc.perform(request(HttpMethod.GET, "/admin/customers")
+                        .param("search", "jane")
+                        .param("sort", "nameAsc")
+                        .session(adminSession()))
+                .andExpect(status().isOk())
+                .andExpect(view().name("admin-customer-list"))
+                .andExpect(model().attribute("customers", List.of(customer)))
+                .andExpect(model().attribute("search", "jane"))
+                .andExpect(model().attribute("sort", "nameAsc"));
+
+        verify(adminCustomerService).search("jane", "nameAsc");
     }
 
     // ---------------------------------------------------------------- edit form

@@ -1,5 +1,8 @@
 package com.pizza.service;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -164,5 +167,112 @@ class AdminCustomerServiceTest {
         assertThat(result.getEmail()).isEqualTo("new@example.com");
         assertThat(result.getPhone()).isEqualTo("5552223333");
         assertThat(result.getAddress()).isEqualTo("22 New Ave");
+    }
+
+    // ---------------------------------------------------------------- search
+
+    @Test
+    void search_withNullSearchAndNullSort_matchesFindAllExactly() {
+        List<Customer> all = new ArrayList<>(List.of(TestDataFactory.customer(), TestDataFactory.customer()));
+        when(customerRepository.findAll()).thenReturn(all);
+
+        List<Customer> searchResult = adminCustomerService.search(null, null);
+        List<Customer> findAllResult = adminCustomerService.findAll();
+
+        assertThat(searchResult).isEqualTo(findAllResult);
+        assertThat(searchResult).isEqualTo(all);
+    }
+
+    @Test
+    void search_withBlankSearchTerm_dispatchesToFindAll() {
+        List<Customer> all = new ArrayList<>(List.of(TestDataFactory.customer()));
+        when(customerRepository.findAll()).thenReturn(all);
+
+        List<Customer> result = adminCustomerService.search("   ", null);
+
+        assertThat(result).isEqualTo(all);
+        verify(customerRepository, never()).searchByNameOrEmail(any());
+    }
+
+    @Test
+    void search_withSearchTerm_dispatchesToSearchByNameOrEmail_trimmed() {
+        Customer match = TestDataFactory.customer();
+        when(customerRepository.searchByNameOrEmail("jane")).thenReturn(new ArrayList<>(List.of(match)));
+
+        List<Customer> result = adminCustomerService.search("  jane  ", null);
+
+        assertThat(result).containsExactly(match);
+        verify(customerRepository).searchByNameOrEmail("jane");
+        verify(customerRepository, never()).findAll();
+    }
+
+    @Test
+    void search_sortsByNameAscending() {
+        Customer bob = TestDataFactory.customer("Bob", "Zephyr", "Passw0rd!", "1 Test St");
+        Customer alice = TestDataFactory.customer("Alice", "Anderson", "Passw0rd!", "1 Test St");
+        when(customerRepository.findAll()).thenReturn(new ArrayList<>(List.of(bob, alice)));
+
+        List<Customer> result = adminCustomerService.search(null, "nameAsc");
+
+        assertThat(result).containsExactly(alice, bob);
+    }
+
+    @Test
+    void search_sortsByNameDescending() {
+        Customer bob = TestDataFactory.customer("Bob", "Zephyr", "Passw0rd!", "1 Test St");
+        Customer alice = TestDataFactory.customer("Alice", "Anderson", "Passw0rd!", "1 Test St");
+        when(customerRepository.findAll()).thenReturn(new ArrayList<>(List.of(alice, bob)));
+
+        List<Customer> result = adminCustomerService.search(null, "nameDesc");
+
+        assertThat(result).containsExactly(bob, alice);
+    }
+
+    @Test
+    void search_sortsByRegisteredAscending_oldestFirst() {
+        Customer older = TestDataFactory.customer();
+        older.setCreatedAt(LocalDateTime.now().minusDays(5));
+        Customer newer = TestDataFactory.customer();
+        newer.setCreatedAt(LocalDateTime.now());
+        when(customerRepository.findAll()).thenReturn(new ArrayList<>(List.of(newer, older)));
+
+        List<Customer> result = adminCustomerService.search(null, "registeredAsc");
+
+        assertThat(result).containsExactly(older, newer);
+    }
+
+    @Test
+    void search_sortsByRegisteredDescending_newestFirst() {
+        Customer older = TestDataFactory.customer();
+        older.setCreatedAt(LocalDateTime.now().minusDays(5));
+        Customer newer = TestDataFactory.customer();
+        newer.setCreatedAt(LocalDateTime.now());
+        when(customerRepository.findAll()).thenReturn(new ArrayList<>(List.of(older, newer)));
+
+        List<Customer> result = adminCustomerService.search(null, "registeredDesc");
+
+        assertThat(result).containsExactly(newer, older);
+    }
+
+    @Test
+    void search_withNullSort_leavesRepositoryOrderUnchanged() {
+        Customer first = TestDataFactory.customer();
+        Customer second = TestDataFactory.customer();
+        when(customerRepository.findAll()).thenReturn(new ArrayList<>(List.of(first, second)));
+
+        List<Customer> result = adminCustomerService.search(null, null);
+
+        assertThat(result).containsExactly(first, second);
+    }
+
+    @Test
+    void search_withUnrecognizedSort_leavesRepositoryOrderUnchanged() {
+        Customer first = TestDataFactory.customer();
+        Customer second = TestDataFactory.customer();
+        when(customerRepository.findAll()).thenReturn(new ArrayList<>(List.of(first, second)));
+
+        List<Customer> result = adminCustomerService.search(null, "bogus");
+
+        assertThat(result).containsExactly(first, second);
     }
 }
