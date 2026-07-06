@@ -159,4 +159,35 @@ class CustomerCheckoutFlowIntegrationTest extends AbstractIntegrationTest {
         Cart cartAfterCheckout = cartRepository.findByUsername(template.getEmail()).orElseThrow();
         assertThat(cartAfterCheckout.getCartItems()).isEmpty();
     }
+
+    @Test
+    void viewCart_rendersActiveCouponCodeButNotInactiveOne() throws Exception {
+        Customer template = TestDataFactory.customer();
+        MockHttpSession session = registerAndLogin(template);
+        assertThat(session).isNotNull();
+
+        Pizza pizza = pizzaRepository.saveAndFlush(
+                TestDataFactory.pizza("Margherita", new BigDecimal("10.00"), "Classic", true));
+        mockMvc.perform(post("/cart/add").param("pizzaId", String.valueOf(pizza.getId())).session(session))
+                .andExpect(status().is3xxRedirection());
+
+        // Same stale-collection issue documented above in fullCheckoutFlow...: the
+        // Cart's cartItems were already cached (empty) by this shared transaction
+        // before add-to-cart persisted its CartItem row directly via
+        // CartItemRepository, so flush + clear before the next read.
+        entityManager.flush();
+        entityManager.clear();
+
+        Coupon activeCoupon = couponRepository.saveAndFlush(TestDataFactory.coupon(10, true));
+        Coupon inactiveCoupon = couponRepository.saveAndFlush(TestDataFactory.coupon(15, false));
+
+        MvcResult result = mockMvc.perform(get("/cart").session(session))
+                .andExpect(status().isOk())
+                .andExpect(view().name("cart"))
+                .andReturn();
+
+        String body = result.getResponse().getContentAsString();
+        assertThat(body).contains(activeCoupon.getCouponCode());
+        assertThat(body).doesNotContain(inactiveCoupon.getCouponCode());
+    }
 }

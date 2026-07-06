@@ -1,5 +1,6 @@
 package com.pizza.service;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -80,6 +81,19 @@ class CouponServiceTest {
         assertThat(saved.getDiscountPercentage()).isEqualTo(10);
         assertThat(saved.isActive()).isTrue();
         assertThat(result).isSameAs(saved);
+    }
+
+    // ---------------------------------------------------------------- findActiveCoupons
+
+    @Test
+    void findActiveCoupons_returnsExactlyWhatRepositoryReturns() {
+        Coupon active1 = TestDataFactory.coupon(10, true);
+        Coupon active2 = TestDataFactory.coupon(20, true);
+        when(couponRepository.findByActiveTrue()).thenReturn(List.of(active1, active2));
+
+        List<Coupon> result = couponService.findActiveCoupons();
+
+        assertThat(result).containsExactly(active1, active2);
     }
 
     // ---------------------------------------------------------------- getCouponById

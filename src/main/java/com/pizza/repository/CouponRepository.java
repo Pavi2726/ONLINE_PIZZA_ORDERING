@@ -1,5 +1,6 @@
 package com.pizza.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -18,4 +19,6 @@ public interface CouponRepository extends JpaRepository<Coupon, Long> {
     boolean existsByCouponCode(String couponCode);
 
     boolean existsByCouponCodeAndIdNot(String couponCode, Long id);
+
+    List<Coupon> findByActiveTrue();
 }

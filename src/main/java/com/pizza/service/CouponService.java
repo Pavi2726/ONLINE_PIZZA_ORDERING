@@ -39,6 +39,11 @@ public class CouponService {
         return couponRepository.findAll();
     }
 
+    @Transactional(readOnly = true)
+    public List<Coupon> findActiveCoupons() {
+        return couponRepository.findByActiveTrue();
+    }
+
     // Get Coupon by ID
     @Transactional(readOnly = true)
     public Coupon getCouponById(Long id) {

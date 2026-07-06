@@ -8,6 +8,7 @@ import com.pizza.service.CouponService;
 import com.pizza.testsupport.TestDataFactory;
 import com.pizza.util.SessionUtil;
 import java.math.BigDecimal;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -21,6 +22,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
@@ -106,6 +108,22 @@ class CartControllerTest {
         mockMvc.perform(get("/cart").session(customerSession(customer)))
                 .andExpect(status().isOk())
                 .andExpect(view().name("cart"));
+    }
+
+    @Test
+    void viewCart_withCustomerSession_addsActiveCouponsToModel() throws Exception {
+        Customer customer = TestDataFactory.customer();
+        when(cartService.getCart(customer.getEmail()))
+                .thenReturn(TestDataFactory.cart(customer.getEmail()));
+        when(cartService.getCartSubtotal(customer.getEmail()))
+                .thenReturn(BigDecimal.ZERO);
+        List<Coupon> activeCoupons = List.of(TestDataFactory.coupon());
+        when(couponService.findActiveCoupons()).thenReturn(activeCoupons);
+
+        mockMvc.perform(get("/cart").session(customerSession(customer)))
+                .andExpect(status().isOk())
+                .andExpect(view().name("cart"))
+                .andExpect(model().attribute("activeCoupons", activeCoupons));
     }
 
     // ============================================================

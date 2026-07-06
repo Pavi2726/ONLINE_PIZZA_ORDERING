@@ -62,6 +62,8 @@ public String viewCart(HttpSession session, Model model) {
 
     model.addAttribute("cart", cart);
 
+    model.addAttribute("activeCoupons", couponService.findActiveCoupons());
+
     BigDecimal subtotal = cartService.getCartSubtotal(customer.getEmail());
 
     model.addAttribute("subtotal", subtotal);
