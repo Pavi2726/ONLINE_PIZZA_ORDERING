@@ -63,4 +63,30 @@ public class AdminOrderController {
 
         return "redirect:/admin/orders/" + id;
     }
+
+    // Bulk Update Order Status (Task 10)
+    @PostMapping("/bulk-status")
+    public String bulkUpdateStatus(
+            @RequestParam List<Long> orderIds,
+            @RequestParam String targetStatus,
+            RedirectAttributes redirectAttributes) {
+
+        try {
+            AdminOrderService.BulkStatusUpdateResult result =
+                    adminOrderService.bulkUpdateStatus(orderIds, targetStatus);
+
+            if (result.skippedOrderNumbers().isEmpty()) {
+                redirectAttributes.addFlashAttribute("successMessage",
+                        result.updatedCount() + " order(s) updated to " + targetStatus + ".");
+            } else {
+                redirectAttributes.addFlashAttribute("warningMessage",
+                        result.updatedCount() + " order(s) updated to " + targetStatus
+                                + "; skipped (invalid transition): " + String.join(", ", result.skippedOrderNumbers()) + ".");
+            }
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+        }
+
+        return "redirect:/admin/orders";
+    }
 }

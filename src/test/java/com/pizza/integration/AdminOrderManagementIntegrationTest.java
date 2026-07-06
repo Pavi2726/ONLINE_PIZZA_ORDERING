@@ -171,4 +171,43 @@ class AdminOrderManagementIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(content().string(containsString(delivered.getOrderNumber())))
                 .andExpect(content().string(not(containsString(placed.getOrderNumber()))));
     }
+
+    // ------------------------------------------------------- bulk status update (Task 10)
+
+    /**
+     * Real orders in a mixed batch: two {@code PLACED} orders (eligible for
+     * {@code PROCESSING}) and one {@code DELIVERED} order (terminal, not
+     * eligible). Confirms the partial-success UX end-to-end through the real
+     * {@link OrderRepository}: eligible orders actually change status in the
+     * database, the ineligible one is left untouched, and the redirect/flash
+     * reflects the mixed outcome.
+     */
+    @Test
+    void bulkUpdateStatus_mixedEligibility_updatesOnlyEligibleOrders_inRealDatabase() throws Exception {
+        Order eligible1 = seedOrder("PLACED");
+        Order eligible2 = seedOrder("PLACED");
+        Order ineligible = seedOrder("DELIVERED");
+        entityManager.flush();
+        entityManager.clear();
+
+        mockMvc.perform(post("/admin/orders/bulk-status")
+                        .param("orderIds", String.valueOf(eligible1.getId()),
+                                String.valueOf(eligible2.getId()), String.valueOf(ineligible.getId()))
+                        .param("targetStatus", "PROCESSING")
+                        .session(adminSession()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/orders"))
+                .andExpect(flash().attribute("warningMessage",
+                        "2 order(s) updated to PROCESSING; skipped (invalid transition): "
+                                + ineligible.getOrderNumber() + "."));
+
+        entityManager.flush();
+        entityManager.clear();
+        assertThat(orderRepository.findByIdWithDetails(eligible1.getId()).orElseThrow().getStatus())
+                .isEqualTo("PROCESSING");
+        assertThat(orderRepository.findByIdWithDetails(eligible2.getId()).orElseThrow().getStatus())
+                .isEqualTo("PROCESSING");
+        assertThat(orderRepository.findByIdWithDetails(ineligible.getId()).orElseThrow().getStatus())
+                .isEqualTo("DELIVERED");
+    }
 }

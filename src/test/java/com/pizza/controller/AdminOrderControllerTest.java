@@ -71,7 +71,8 @@ class AdminOrderControllerTest {
         return Stream.of(
                 Arguments.of(HttpMethod.GET, "/admin/orders"),
                 Arguments.of(HttpMethod.GET, "/admin/orders/1"),
-                Arguments.of(HttpMethod.POST, "/admin/orders/1/status"));
+                Arguments.of(HttpMethod.POST, "/admin/orders/1/status"),
+                Arguments.of(HttpMethod.POST, "/admin/orders/bulk-status"));
     }
 
     @ParameterizedTest(name = "{0} {1} with no admin session redirects to /admin/login")
@@ -191,5 +192,65 @@ class AdminOrderControllerTest {
                 .andExpect(flash().attribute("errorMessage", "Cannot move an order from PLACED to DELIVERED."));
 
         verify(adminOrderService).updateStatus(1L, "DELIVERED");
+    }
+
+    // --------------------------------------------------------- bulk status update
+
+    @Test
+    void bulkUpdateStatus_bindsOrderIdsListParam_andRedirectsToOrderList() throws Exception {
+        when(adminOrderService.bulkUpdateStatus(List.of(1L, 2L, 3L), "PROCESSING"))
+                .thenReturn(new AdminOrderService.BulkStatusUpdateResult(3, List.of()));
+
+        mockMvc.perform(request(HttpMethod.POST, "/admin/orders/bulk-status")
+                        .param("orderIds", "1", "2", "3")
+                        .param("targetStatus", "PROCESSING")
+                        .session(adminSession()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/orders"));
+
+        verify(adminOrderService).bulkUpdateStatus(List.of(1L, 2L, 3L), "PROCESSING");
+    }
+
+    @Test
+    void bulkUpdateStatus_allEligible_flashesSuccessMessage() throws Exception {
+        when(adminOrderService.bulkUpdateStatus(List.of(1L, 2L), "PROCESSING"))
+                .thenReturn(new AdminOrderService.BulkStatusUpdateResult(2, List.of()));
+
+        mockMvc.perform(request(HttpMethod.POST, "/admin/orders/bulk-status")
+                        .param("orderIds", "1", "2")
+                        .param("targetStatus", "PROCESSING")
+                        .session(adminSession()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/orders"))
+                .andExpect(flash().attribute("successMessage", "2 order(s) updated to PROCESSING."));
+    }
+
+    @Test
+    void bulkUpdateStatus_mixedResult_flashesWarningMessage() throws Exception {
+        when(adminOrderService.bulkUpdateStatus(List.of(1L, 2L), "PROCESSING"))
+                .thenReturn(new AdminOrderService.BulkStatusUpdateResult(1, List.of("ORD-TEST-99")));
+
+        mockMvc.perform(request(HttpMethod.POST, "/admin/orders/bulk-status")
+                        .param("orderIds", "1", "2")
+                        .param("targetStatus", "PROCESSING")
+                        .session(adminSession()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/orders"))
+                .andExpect(flash().attribute("warningMessage",
+                        "1 order(s) updated to PROCESSING; skipped (invalid transition): ORD-TEST-99."));
+    }
+
+    @Test
+    void bulkUpdateStatus_serviceThrows_isCaughtInController_redirectsWithErrorFlash_notA500() throws Exception {
+        when(adminOrderService.bulkUpdateStatus(List.of(1L), "NOT_A_STATUS"))
+                .thenThrow(new IllegalArgumentException("Unknown target status: NOT_A_STATUS"));
+
+        mockMvc.perform(request(HttpMethod.POST, "/admin/orders/bulk-status")
+                        .param("orderIds", "1")
+                        .param("targetStatus", "NOT_A_STATUS")
+                        .session(adminSession()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/orders"))
+                .andExpect(flash().attribute("errorMessage", "Unknown target status: NOT_A_STATUS"));
     }
 }

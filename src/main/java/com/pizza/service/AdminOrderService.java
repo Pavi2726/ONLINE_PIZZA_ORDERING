@@ -1,5 +1,6 @@
 package com.pizza.service;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
@@ -98,5 +99,49 @@ public class AdminOrderService {
         } catch (IllegalArgumentException ex) {
             return false;
         }
+    }
+
+    /** Result of a bulk status update (Task 10): how many orders were moved, and the order numbers skipped. */
+    public record BulkStatusUpdateResult(int updatedCount, List<String> skippedOrderNumbers) {}
+
+    /**
+     * Applies {@code targetStatus} to every order in {@code orderIds} for
+     * which the transition is valid, reusing {@link #isValidTarget(String)}
+     * and {@link OrderStatus#canTransitionTo(String)} - the same
+     * transition-validation rules {@link #updateStatus(Long, String)} uses
+     * for a single order. Orders for which the transition isn't valid (or
+     * whose current status isn't recognized) are skipped rather than
+     * aborting the whole batch (confirmed partial-success UX).
+     */
+    @Transactional
+    public BulkStatusUpdateResult bulkUpdateStatus(List<Long> orderIds, String targetStatus) {
+        if (!isValidTarget(targetStatus)) {
+            throw new IllegalArgumentException("Unknown target status: " + targetStatus);
+        }
+
+        int updated = 0;
+        List<String> skipped = new ArrayList<>();
+
+        for (Long id : orderIds) {
+            Order order = getById(id);
+            OrderStatus current;
+            try {
+                current = OrderStatus.valueOf(order.getStatus());
+            } catch (IllegalArgumentException ex) {
+                skipped.add(order.getOrderNumber());
+                continue;
+            }
+
+            if (!current.canTransitionTo(targetStatus)) {
+                skipped.add(order.getOrderNumber());
+                continue;
+            }
+
+            order.setStatus(targetStatus);
+            orderRepository.save(order);
+            updated++;
+        }
+
+        return new BulkStatusUpdateResult(updated, skipped);
     }
 }

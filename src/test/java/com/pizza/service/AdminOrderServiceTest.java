@@ -267,4 +267,89 @@ class AdminOrderServiceTest {
         assertThrows(ResourceNotFoundException.class, () -> adminOrderService.updateStatus(404L, "PROCESSING"));
         verify(orderRepository, never()).save(any());
     }
+
+    // ---------------------------------------------------------------- bulkUpdateStatus
+
+    private Order orderWithIdAndStatus(Long id, String status) {
+        Order order = TestDataFactory.order(TestDataFactory.customer());
+        order.setId(id);
+        order.setStatus(status);
+        return order;
+    }
+
+    @Test
+    void bulkUpdateStatus_allEligible_updatesAllAndSkipsNone() {
+        Order o1 = orderWithIdAndStatus(1L, "PLACED");
+        Order o2 = orderWithIdAndStatus(2L, "PLACED");
+        when(orderRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(o1));
+        when(orderRepository.findByIdWithDetails(2L)).thenReturn(Optional.of(o2));
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        AdminOrderService.BulkStatusUpdateResult result =
+                adminOrderService.bulkUpdateStatus(List.of(1L, 2L), "PROCESSING");
+
+        assertThat(result.updatedCount()).isEqualTo(2);
+        assertThat(result.skippedOrderNumbers()).isEmpty();
+        assertThat(o1.getStatus()).isEqualTo("PROCESSING");
+        assertThat(o2.getStatus()).isEqualTo("PROCESSING");
+        verify(orderRepository).save(o1);
+        verify(orderRepository).save(o2);
+    }
+
+    @Test
+    void bulkUpdateStatus_mixedBatch_updatesEligibleAndSkipsIneligibleByOrderNumber() {
+        // PLACED -> PROCESSING is valid; DELIVERED is terminal (no valid transitions).
+        Order eligible1 = orderWithIdAndStatus(1L, "PLACED");
+        Order ineligible = orderWithIdAndStatus(2L, "DELIVERED");
+        Order eligible2 = orderWithIdAndStatus(3L, "PLACED");
+        when(orderRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(eligible1));
+        when(orderRepository.findByIdWithDetails(2L)).thenReturn(Optional.of(ineligible));
+        when(orderRepository.findByIdWithDetails(3L)).thenReturn(Optional.of(eligible2));
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        AdminOrderService.BulkStatusUpdateResult result =
+                adminOrderService.bulkUpdateStatus(List.of(1L, 2L, 3L), "PROCESSING");
+
+        assertThat(result.updatedCount()).isEqualTo(2);
+        assertThat(result.skippedOrderNumbers()).containsExactly(ineligible.getOrderNumber());
+        assertThat(eligible1.getStatus()).isEqualTo("PROCESSING");
+        assertThat(eligible2.getStatus()).isEqualTo("PROCESSING");
+        assertThat(ineligible.getStatus()).isEqualTo("DELIVERED");
+        verify(orderRepository, never()).save(ineligible);
+    }
+
+    @Test
+    void bulkUpdateStatus_allIneligible_updatesNoneAndSkipsAll() {
+        Order o1 = orderWithIdAndStatus(1L, "DELIVERED");
+        Order o2 = orderWithIdAndStatus(2L, "CANCELLED");
+        when(orderRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(o1));
+        when(orderRepository.findByIdWithDetails(2L)).thenReturn(Optional.of(o2));
+
+        AdminOrderService.BulkStatusUpdateResult result =
+                adminOrderService.bulkUpdateStatus(List.of(1L, 2L), "PROCESSING");
+
+        assertThat(result.updatedCount()).isEqualTo(0);
+        assertThat(result.skippedOrderNumbers()).containsExactlyInAnyOrder(o1.getOrderNumber(), o2.getOrderNumber());
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    void bulkUpdateStatus_unknownTargetStatus_throwsImmediately_beforeTouchingAnyOrder() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> adminOrderService.bulkUpdateStatus(List.of(1L, 2L), "NOT_A_STATUS"));
+
+        assertThat(ex.getMessage()).isEqualTo("Unknown target status: NOT_A_STATUS");
+        verify(orderRepository, never()).save(any());
+        verify(orderRepository, never()).findByIdWithDetails(any());
+    }
+
+    @Test
+    void bulkUpdateStatus_emptyOrderIdsList_returnsZeroUpdatedAndNoSkips_withoutError() {
+        AdminOrderService.BulkStatusUpdateResult result =
+                adminOrderService.bulkUpdateStatus(List.of(), "PROCESSING");
+
+        assertThat(result.updatedCount()).isEqualTo(0);
+        assertThat(result.skippedOrderNumbers()).isEmpty();
+        verify(orderRepository, never()).save(any());
+    }
 }

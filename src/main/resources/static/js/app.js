@@ -103,6 +103,16 @@
         }, 5000);
     });
 
+    // ---- Bulk order-status select-all (admin order list) ----
+    const selectAllOrders = document.getElementById("selectAllOrders");
+    if (selectAllOrders) {
+        selectAllOrders.addEventListener("change", function () {
+            document.querySelectorAll('input[name="orderIds"]').forEach(function (cb) {
+                cb.checked = selectAllOrders.checked;
+            });
+        });
+    }
+
     // ---- Dark mode toggle ----
     const themeToggle = document.getElementById("themeToggle");
     if (themeToggle) {
