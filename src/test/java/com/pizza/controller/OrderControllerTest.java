@@ -73,6 +73,7 @@ class OrderControllerTest {
                 Arguments.of(HttpMethod.GET, "/orders/checkout"),
                 Arguments.of(HttpMethod.POST, "/orders/place"),
                 Arguments.of(HttpMethod.POST, "/orders/cancel/1"),
+                Arguments.of(HttpMethod.POST, "/orders/reorder/1"),
                 Arguments.of(HttpMethod.GET, "/orders/success/ORD-TEST-1"),
                 Arguments.of(HttpMethod.GET, "/orders/edit/1"),
                 Arguments.of(HttpMethod.POST, "/orders/edit/1"),
@@ -214,6 +215,39 @@ class OrderControllerTest {
                 .andExpect(flash().attribute("successMessage", "Order cancelled successfully."));
 
         verify(orderService).cancelOrder(9L, 5L);
+    }
+
+    // ------------------------------------------------------------- reorder
+
+    @Test
+    void reorder_withCustomerSession_redirectsToCartWithSuccessFlashMessage() throws Exception {
+        Customer customer = TestDataFactory.customer();
+        customer.setId(6L);
+        OrderService.ReorderResult result = new OrderService.ReorderResult(2, List.of(), List.of());
+        when(orderService.reorder(9L, 6L)).thenReturn(result);
+
+        mockMvc.perform(request(HttpMethod.POST, "/orders/reorder/9").session(customerSession(customer)))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/cart"))
+                .andExpect(flash().attribute("successMessage", "2 item(s) added to your cart."));
+
+        verify(orderService).reorder(9L, 6L);
+    }
+
+    @Test
+    void reorder_withSkippedAndCappedItems_flashMessageMentionsBoth() throws Exception {
+        Customer customer = TestDataFactory.customer();
+        customer.setId(7L);
+        OrderService.ReorderResult result = new OrderService.ReorderResult(
+                1, List.of("Retired Special"), List.of("Margherita"));
+        when(orderService.reorder(10L, 7L)).thenReturn(result);
+
+        mockMvc.perform(request(HttpMethod.POST, "/orders/reorder/10").session(customerSession(customer)))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/cart"))
+                .andExpect(flash().attribute("successMessage",
+                        "1 item(s) added to your cart. Unavailable, skipped: Retired Special."
+                                + " Capped at maximum quantity: Margherita."));
     }
 
     // ------------------------------------------------------- edit/** family

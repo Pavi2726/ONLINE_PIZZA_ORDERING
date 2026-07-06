@@ -64,6 +64,49 @@ public class CartService {
 
     cartItemRepository.save(cartItem);
 }
+/**
+ * Adds a specific quantity of a pizza to the cart, clamping at
+ * MAX_QUANTITY_PER_ITEM instead of throwing. Returns true if the
+ * requested quantity had to be clamped down.
+ *
+ * <p>Used exclusively by {@code OrderService.reorder} so that reordering a
+ * past order never fails outright when a line would exceed the cap - unlike
+ * {@link #addPizzaToCart(String, Long)}, which intentionally still throws
+ * for the pizza-list "Add to Cart" button.</p>
+ */
+public boolean addPizzaToCartClamped(String username, Long pizzaId, int quantity) {
+
+    Cart cart = getOrCreateCart(username);
+
+    Pizza pizza = pizzaRepository.findById(pizzaId)
+            .orElseThrow(() -> new ResourceNotFoundException("Pizza not found"));
+
+    CartItem cartItem = cartItemRepository.findByCartAndPizza(cart, pizza).orElse(null);
+    boolean clamped = false;
+
+    if (cartItem != null) {
+        int newQuantity = cartItem.getQuantity() + quantity;
+        if (newQuantity > MAX_QUANTITY_PER_ITEM) {
+            newQuantity = MAX_QUANTITY_PER_ITEM;
+            clamped = true;
+        }
+        cartItem.setQuantity(newQuantity);
+    } else {
+        int newQuantity = quantity;
+        if (newQuantity > MAX_QUANTITY_PER_ITEM) {
+            newQuantity = MAX_QUANTITY_PER_ITEM;
+            clamped = true;
+        }
+        cartItem = new CartItem();
+        cartItem.setCart(cart);
+        cartItem.setPizza(pizza);
+        cartItem.setQuantity(newQuantity);
+    }
+
+    cartItemRepository.save(cartItem);
+    return clamped;
+}
+
 @Transactional(readOnly = true)
 public Cart getCart(String username) {
 

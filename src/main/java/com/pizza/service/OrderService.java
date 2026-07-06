@@ -4,6 +4,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.time.Duration;
@@ -389,6 +390,46 @@ public void addPizzaToOrder(Long orderId,
 
     orderRepository.save(order);
 }
+/**
+ * Result of a reorder attempt: how many order lines were appended to the
+ * customer's cart, which pizzas were skipped because they are no longer
+ * available, and which pizzas had their added quantity clamped at the
+ * per-item cart cap.
+ */
+public record ReorderResult(int addedCount, List<String> skippedPizzaNames, List<String> cappedPizzaNames) {}
+
+/**
+ * Reorders a past order: every still-available pizza is appended to the
+ * customer's existing cart (never clears it first) via {@link
+ * CartService#addPizzaToCartClamped(String, Long, int)}. Unavailable pizzas
+ * are skipped rather than aborting the whole reorder; lines that would
+ * exceed the per-item cart cap are clamped rather than throwing.
+ */
+@Transactional
+public ReorderResult reorder(Long orderId, Long customerId) {
+    Order order = findOrderById(orderId, customerId);
+
+    int added = 0;
+    List<String> skipped = new ArrayList<>();
+    List<String> capped = new ArrayList<>();
+
+    for (OrderItem item : order.getOrderItems()) {
+        Pizza pizza = item.getPizza();
+        if (!pizza.isAvailable()) {
+            skipped.add(pizza.getName());
+            continue;
+        }
+        boolean wasClamped = cartService.addPizzaToCartClamped(
+                order.getCustomer().getEmail(), pizza.getId(), item.getQuantity());
+        if (wasClamped) {
+            capped.add(pizza.getName());
+        }
+        added++;
+    }
+
+    return new ReorderResult(added, skipped, capped);
+}
+
 @Transactional
 public void updateOrderDetails(Long orderId,
                                String deliveryAddress,

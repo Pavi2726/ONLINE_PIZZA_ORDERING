@@ -199,6 +199,15 @@
 
                 </div>
 
+                <!-- Reorder: available for orders in ANY status, not just PLACED. -->
+                <div class="d-flex justify-content-end mt-2">
+                    <form th:action="@{/orders/reorder/{id}(id=${order.id})}" method="post">
+                        <button type="submit" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-arrow-repeat"></i> Reorder
+                        </button>
+                    </form>
+                </div>
+
             </div>
 
         </div>

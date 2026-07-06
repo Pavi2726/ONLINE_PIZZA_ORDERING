@@ -99,6 +99,31 @@ public String cancelOrder(
 
     return "redirect:/orders/history";
 }
+@PostMapping("/reorder/{orderId}")
+public String reorder(@PathVariable Long orderId,
+                       HttpSession session,
+                       RedirectAttributes redirectAttributes) {
+
+    Customer customer = SessionUtil.getCurrentCustomer(session);
+
+    if (customer == null) {
+        redirectAttributes.addFlashAttribute("errorMessage", "Please log in first.");
+        return "redirect:/login";
+    }
+
+    OrderService.ReorderResult result = orderService.reorder(orderId, customer.getId());
+
+    StringBuilder message = new StringBuilder(result.addedCount() + " item(s) added to your cart.");
+    if (!result.skippedPizzaNames().isEmpty()) {
+        message.append(" Unavailable, skipped: ").append(String.join(", ", result.skippedPizzaNames())).append(".");
+    }
+    if (!result.cappedPizzaNames().isEmpty()) {
+        message.append(" Capped at maximum quantity: ").append(String.join(", ", result.cappedPizzaNames())).append(".");
+    }
+
+    redirectAttributes.addFlashAttribute("successMessage", message.toString());
+    return "redirect:/cart";
+}
 @GetMapping("/checkout")
 public String checkout(HttpSession session,
                        Model model,

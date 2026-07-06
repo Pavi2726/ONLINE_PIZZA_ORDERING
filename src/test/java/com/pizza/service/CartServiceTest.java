@@ -229,6 +229,67 @@ class CartServiceTest {
         verify(cartItemRepository, never()).save(any(CartItem.class));
     }
 
+    // ---------------------------------------------------------------- addPizzaToCartClamped (Task 7: reorder)
+    // Separate, distinctly-named method used exclusively by OrderService.reorder.
+    // Unlike addPizzaToCart(String, Long), this clamps at the cap instead of
+    // throwing, so a historical order can always be reordered in full.
+
+    @Test
+    void addPizzaToCartClamped_newItem_underCap_addsRequestedQuantityAndReturnsFalse() {
+        Cart cart = TestDataFactory.cart("jane@example.com");
+        Pizza pizza = TestDataFactory.pizza();
+        pizza.setId(5L);
+
+        when(cartRepository.findByUsername("jane@example.com")).thenReturn(Optional.of(cart));
+        when(pizzaRepository.findById(5L)).thenReturn(Optional.of(pizza));
+        when(cartItemRepository.findByCartAndPizza(cart, pizza)).thenReturn(Optional.empty());
+
+        boolean clamped = cartService.addPizzaToCartClamped("jane@example.com", 5L, 3);
+
+        assertThat(clamped).isFalse();
+        ArgumentCaptor<CartItem> captor = ArgumentCaptor.forClass(CartItem.class);
+        verify(cartItemRepository).save(captor.capture());
+        assertThat(captor.getValue().getQuantity()).isEqualTo(3);
+        assertThat(captor.getValue().getCart()).isSameAs(cart);
+        assertThat(captor.getValue().getPizza()).isSameAs(pizza);
+    }
+
+    @Test
+    void addPizzaToCartClamped_existingItem_sumExceedsCap_clampsAtFiftyAndReturnsTrue() {
+        Cart cart = TestDataFactory.cart("jane@example.com");
+        Pizza pizza = TestDataFactory.pizza();
+        pizza.setId(5L);
+        CartItem existingItem = TestDataFactory.cartItem(cart, pizza, 45);
+
+        when(cartRepository.findByUsername("jane@example.com")).thenReturn(Optional.of(cart));
+        when(pizzaRepository.findById(5L)).thenReturn(Optional.of(pizza));
+        when(cartItemRepository.findByCartAndPizza(cart, pizza)).thenReturn(Optional.of(existingItem));
+
+        boolean clamped = cartService.addPizzaToCartClamped("jane@example.com", 5L, 10);
+
+        assertThat(clamped).isTrue();
+        assertThat(existingItem.getQuantity()).isEqualTo(50);
+        verify(cartItemRepository).save(existingItem);
+    }
+
+    @Test
+    void addPizzaToCartClamped_newItem_requestedQuantityExceedsCap_clampsAtFiftyAndReturnsTrue() {
+        Cart cart = TestDataFactory.cart("jane@example.com");
+        Pizza pizza = TestDataFactory.pizza();
+        pizza.setId(5L);
+
+        when(cartRepository.findByUsername("jane@example.com")).thenReturn(Optional.of(cart));
+        when(pizzaRepository.findById(5L)).thenReturn(Optional.of(pizza));
+        when(cartItemRepository.findByCartAndPizza(cart, pizza)).thenReturn(Optional.empty());
+
+        boolean clamped = cartService.addPizzaToCartClamped("jane@example.com", 5L, 75);
+
+        assertThat(clamped).isTrue();
+        ArgumentCaptor<CartItem> captor = ArgumentCaptor.forClass(CartItem.class);
+        verify(cartItemRepository).save(captor.capture());
+        assertThat(captor.getValue().getQuantity()).isEqualTo(50);
+    }
+
     // ---------------------------------------------------------------- getItemCount (navbar badge)
 
     @Test

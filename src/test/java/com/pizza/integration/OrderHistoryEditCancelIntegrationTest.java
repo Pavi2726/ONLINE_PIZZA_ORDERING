@@ -1,6 +1,7 @@
 package com.pizza.integration;
 
 import com.pizza.AbstractIntegrationTest;
+import com.pizza.entity.Cart;
 import com.pizza.entity.Customer;
 import com.pizza.entity.Order;
 import com.pizza.entity.OrderItem;
@@ -8,8 +9,10 @@ import com.pizza.entity.Pizza;
 import com.pizza.repository.CustomerRepository;
 import com.pizza.repository.OrderRepository;
 import com.pizza.repository.PizzaRepository;
+import com.pizza.service.CartService;
 import com.pizza.testsupport.TestDataFactory;
 import com.pizza.util.SessionUtil;
+import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
@@ -48,6 +51,12 @@ class OrderHistoryEditCancelIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private OrderRepository orderRepository;
+
+    @Autowired
+    private CartService cartService;
+
+    @Autowired
+    private EntityManager entityManager;
 
     private Customer persistedCustomer() {
         return customerRepository.saveAndFlush(TestDataFactory.customer());
@@ -177,5 +186,65 @@ class OrderHistoryEditCancelIntegrationTest extends AbstractIntegrationTest {
 
         Order afterSecondAttempt = orderRepository.findByIdWithDetails(orderId).orElseThrow();
         assertThat(afterSecondAttempt.getStatus()).isEqualTo("CANCELLED");
+    }
+
+    // ---------------------------------------------------------------- reorder (Task 7)
+
+    @Test
+    void reorder_appendsPastOrderItemsOntoWhateverIsAlreadyInTheCart() throws Exception {
+        Customer customer = persistedCustomer();
+        Pizza pizza = persistedPizza(new BigDecimal("10.00"));
+        // A DELIVERED order well outside the 5-minute edit window - reorder
+        // must work for orders in any status, unlike edit/cancel.
+        Order delivered = seedOrder(customer, LocalDateTime.now().minusDays(3), "DELIVERED", pizza, 2);
+        Long orderId = delivered.getId();
+        MockHttpSession session = customerSession(customer);
+
+        // Cart already has one unit of the same pizza before reordering, to
+        // prove reorder APPENDS rather than clearing/replacing cart contents.
+        cartService.addPizzaToCart(customer.getEmail(), pizza.getId());
+
+        mockMvc.perform(post("/orders/reorder/" + orderId).session(session))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/cart"))
+                .andExpect(flash().attribute("successMessage", "1 item(s) added to your cart."));
+
+        // Force Hibernate to synchronize with H2 and drop cached state, so the
+        // read below reflects genuine database rows rather than the stale,
+        // already-initialized in-memory Cart.cartItems collection from the
+        // earlier addPizzaToCart call (same technique as
+        // CartOwnershipIdorIntegrationTest).
+        entityManager.flush();
+        entityManager.clear();
+
+        Cart cart = cartService.getCart(customer.getEmail());
+        assertThat(cart.getCartItems()).hasSize(1);
+        // 1 (pre-existing) + 2 (reordered quantity) = 3.
+        assertThat(cart.getCartItems().get(0).getQuantity()).isEqualTo(3);
+    }
+
+    @Test
+    void reorder_withUnavailablePizza_skipsItAndLeavesCartUntouchedForThatLine() throws Exception {
+        Customer customer = persistedCustomer();
+        Pizza pizza = persistedPizza(new BigDecimal("10.00"));
+        Order delivered = seedOrder(customer, LocalDateTime.now().minusDays(1), "DELIVERED", pizza, 2);
+        Long orderId = delivered.getId();
+        MockHttpSession session = customerSession(customer);
+
+        // The pizza has since been marked unavailable by an admin.
+        pizza.setAvailable(false);
+        pizzaRepository.saveAndFlush(pizza);
+
+        mockMvc.perform(post("/orders/reorder/" + orderId).session(session))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/cart"))
+                .andExpect(flash().attribute("successMessage",
+                        "0 item(s) added to your cart. Unavailable, skipped: Margherita."));
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Cart cart = cartService.getCart(customer.getEmail());
+        assertThat(cart.getCartItems()).isEmpty();
     }
 }

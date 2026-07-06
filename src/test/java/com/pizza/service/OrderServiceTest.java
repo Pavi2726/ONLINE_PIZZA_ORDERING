@@ -25,9 +25,12 @@ import com.pizza.testsupport.TestDataFactory;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -249,5 +252,83 @@ class OrderServiceTest {
                 .isEqualTo("The 5-minute update window has expired. Please reorder to make any changes.");
         assertThat(order.getDeliveryAddress()).isEqualTo(originalAddress);
         verify(orderRepository, never()).save(any());
+    }
+
+    // ---------------------------------------------------------------- reorder (Task 7)
+
+    @Test
+    void reorder_allItemsAvailableAndUnderCap_appendsEachViaClampedAddAndReturnsCounts() {
+        Customer customer = customer();
+        Order order = TestDataFactory.order(customer, LocalDateTime.now(), "DELIVERED");
+        order.setId(30L);
+        Pizza pizzaA = TestDataFactory.pizza("Margherita", new BigDecimal("9.99"), "Classic", true);
+        pizzaA.setId(1L);
+        Pizza pizzaB = TestDataFactory.pizza("Pepperoni", new BigDecimal("11.99"), "Classic", true);
+        pizzaB.setId(2L);
+        order.addOrderItem(TestDataFactory.orderItem(order, pizzaA, 2));
+        order.addOrderItem(TestDataFactory.orderItem(order, pizzaB, 1));
+
+        when(orderRepository.findByIdAndCustomerId(30L, 1L)).thenReturn(Optional.of(order));
+        when(cartService.addPizzaToCartClamped(customer.getEmail(), 1L, 2)).thenReturn(false);
+        when(cartService.addPizzaToCartClamped(customer.getEmail(), 2L, 1)).thenReturn(false);
+
+        OrderService.ReorderResult result = orderService.reorder(30L, 1L);
+
+        assertThat(result.addedCount()).isEqualTo(2);
+        assertThat(result.skippedPizzaNames()).isEmpty();
+        assertThat(result.cappedPizzaNames()).isEmpty();
+        verify(cartService).addPizzaToCartClamped(customer.getEmail(), 1L, 2);
+        verify(cartService).addPizzaToCartClamped(customer.getEmail(), 2L, 1);
+    }
+
+    @Test
+    void reorder_oneItemUnavailable_isSkippedAndNeverSentToCartService() {
+        Customer customer = customer();
+        Order order = TestDataFactory.order(customer, LocalDateTime.now(), "DELIVERED");
+        order.setId(31L);
+        Pizza available = TestDataFactory.pizza("Margherita", new BigDecimal("9.99"), "Classic", true);
+        available.setId(1L);
+        Pizza unavailable = TestDataFactory.pizza("Retired Special", new BigDecimal("11.99"), "Classic", false);
+        unavailable.setId(2L);
+        order.addOrderItem(TestDataFactory.orderItem(order, available, 2));
+        order.addOrderItem(TestDataFactory.orderItem(order, unavailable, 1));
+
+        when(orderRepository.findByIdAndCustomerId(31L, 1L)).thenReturn(Optional.of(order));
+        when(cartService.addPizzaToCartClamped(customer.getEmail(), 1L, 2)).thenReturn(false);
+
+        OrderService.ReorderResult result = orderService.reorder(31L, 1L);
+
+        assertThat(result.addedCount()).isEqualTo(1);
+        assertThat(result.skippedPizzaNames()).containsExactly("Retired Special");
+        assertThat(result.cappedPizzaNames()).isEmpty();
+        verify(cartService, never()).addPizzaToCartClamped(anyString(), eq(2L), anyInt());
+    }
+
+    @Test
+    void reorder_itemThatWouldExceedCap_isReflectedInCappedPizzaNamesAndStillCountsAsAdded() {
+        Customer customer = customer();
+        Order order = TestDataFactory.order(customer, LocalDateTime.now(), "DELIVERED");
+        order.setId(32L);
+        Pizza pizza = TestDataFactory.pizza("Margherita", new BigDecimal("9.99"), "Classic", true);
+        pizza.setId(1L);
+        order.addOrderItem(TestDataFactory.orderItem(order, pizza, 40));
+
+        when(orderRepository.findByIdAndCustomerId(32L, 1L)).thenReturn(Optional.of(order));
+        when(cartService.addPizzaToCartClamped(customer.getEmail(), 1L, 40)).thenReturn(true);
+
+        OrderService.ReorderResult result = orderService.reorder(32L, 1L);
+
+        assertThat(result.addedCount()).isEqualTo(1);
+        assertThat(result.skippedPizzaNames()).isEmpty();
+        assertThat(result.cappedPizzaNames()).containsExactly("Margherita");
+    }
+
+    @Test
+    void reorder_orderNotOwnedByCustomer_throwsResourceNotFoundExceptionAndNeverTouchesCart() {
+        when(orderRepository.findByIdAndCustomerId(999L, 1L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> orderService.reorder(999L, 1L));
+
+        verifyNoInteractions(cartService);
     }
 }
