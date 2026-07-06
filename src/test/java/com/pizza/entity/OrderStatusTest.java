@@ -74,4 +74,41 @@ class OrderStatusTest {
             assertThrows(NullPointerException.class, () -> from.canTransitionTo(null));
         }
     }
+
+    // ------------------------------------------------------------ stepIndex
+
+    @Test
+    void stepIndex_returnsLinearPositionForEachSequenceStatus() {
+        assertThat(OrderStatus.stepIndex("PLACED")).isEqualTo(0);
+        assertThat(OrderStatus.stepIndex("PROCESSING")).isEqualTo(1);
+        assertThat(OrderStatus.stepIndex("OUT_FOR_DELIVERY")).isEqualTo(2);
+        assertThat(OrderStatus.stepIndex("DELIVERED")).isEqualTo(3);
+    }
+
+    @Test
+    void stepIndex_cancelled_returnsMinusOne() {
+        assertThat(OrderStatus.stepIndex("CANCELLED")).isEqualTo(-1);
+    }
+
+    @Test
+    void stepIndex_unrecognizedValue_returnsMinusOne() {
+        // Defensive default - mirrors AdminOrderService's handling of
+        // unrecognized status strings rather than throwing.
+        assertThat(OrderStatus.stepIndex("SOME_UNRECOGNIZED_VALUE")).isEqualTo(-1);
+    }
+
+    // ------------------------------------------------------- estimatedWindowLabel
+
+    @Test
+    void estimatedWindowLabel_nonTerminalStatuses_areNonBlank() {
+        assertThat(OrderStatus.PLACED.estimatedWindowLabel()).isNotBlank();
+        assertThat(OrderStatus.PROCESSING.estimatedWindowLabel()).isNotBlank();
+        assertThat(OrderStatus.OUT_FOR_DELIVERY.estimatedWindowLabel()).isNotBlank();
+    }
+
+    @Test
+    void estimatedWindowLabel_terminalStatuses_areBlank() {
+        assertThat(OrderStatus.DELIVERED.estimatedWindowLabel()).isBlank();
+        assertThat(OrderStatus.CANCELLED.estimatedWindowLabel()).isBlank();
+    }
 }

@@ -148,6 +148,8 @@
 
                         </p>
 
+                        <div th:replace="~{fragments/order-status :: stepper(${order.status})}"></div>
+
                        <p class="text-muted mb-0">
 
     <strong th:text="${order.updatedAt != null ? 'Updated On:' : 'Ordered On:'}">

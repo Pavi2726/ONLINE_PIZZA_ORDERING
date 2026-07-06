@@ -91,6 +91,12 @@
         </div>
     </div>
 
+    <div class="row mb-2">
+        <div class="col-12">
+            <div th:replace="~{fragments/order-status :: stepper(${order.status})}"></div>
+        </div>
+    </div>
+
                         <div class="row">
     <div class="col-6 text-muted">Order Date</div>
     <div class="col-6 text-end"

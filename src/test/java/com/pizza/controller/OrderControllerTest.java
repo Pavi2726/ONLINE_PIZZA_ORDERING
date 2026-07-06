@@ -92,6 +92,31 @@ class OrderControllerTest {
         verifyNoInteractions(orderService, cartService);
     }
 
+    // -------------------------------------------------------------- success
+
+    @Test
+    void viewOrderSuccess_withCustomerSession_rendersOrderSuccessViewWithStatusStepper() throws Exception {
+        Customer customer = TestDataFactory.customer();
+        customer.setId(1L);
+        Order order = TestDataFactory.order(customer, LocalDateTime.now(), "PROCESSING");
+        order.setId(1L);
+        order.setCreatedAt(LocalDateTime.now());
+        Pizza pizza = TestDataFactory.pizza();
+        order.addOrderItem(TestDataFactory.orderItem(order, pizza, 2));
+
+        when(orderService.findByOrderNumberForCustomer(order.getOrderNumber(), 1L)).thenReturn(order);
+
+        mockMvc.perform(request(HttpMethod.GET, "/orders/success/" + order.getOrderNumber())
+                        .session(customerSession(customer)))
+                .andExpect(status().isOk())
+                .andExpect(view().name("order-success"))
+                // Task 5: the shared order-status stepper fragment renders inline
+                // (2 of 4 steps filled for PROCESSING) with its estimated-window caption.
+                .andExpect(content().string(containsString("bi-check-circle-fill")))
+                .andExpect(content().string(containsString("Estimated:")))
+                .andExpect(content().string(containsString("30")));
+    }
+
     // ------------------------------------------------------------- history
 
     @Test

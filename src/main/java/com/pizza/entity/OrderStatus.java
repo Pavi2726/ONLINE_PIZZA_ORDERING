@@ -27,4 +27,30 @@ public enum OrderStatus {
     public boolean canTransitionTo(String targetStatus) {
         return allowedNextStatuses.contains(targetStatus);
     }
+
+    /**
+     * Position in the linear PLACED-&gt;DELIVERED sequence (0-3), or -1 for
+     * CANCELLED / any status outside that sequence (defensive default -
+     * mirrors how {@link com.pizza.service.AdminOrderService} treats
+     * unrecognized status strings rather than throwing).
+     */
+    public static int stepIndex(String status) {
+        return switch (status) {
+            case "PLACED" -> 0;
+            case "PROCESSING" -> 1;
+            case "OUT_FOR_DELIVERY" -> 2;
+            case "DELIVERED" -> 3;
+            default -> -1;
+        };
+    }
+
+    /** Static estimated delivery window for display purposes. Blank for terminal statuses. */
+    public String estimatedWindowLabel() {
+        return switch (this) {
+            case PLACED -> "45–60 min";
+            case PROCESSING -> "30–45 min";
+            case OUT_FOR_DELIVERY -> "10–20 min";
+            case DELIVERED, CANCELLED -> "";
+        };
+    }
 }
