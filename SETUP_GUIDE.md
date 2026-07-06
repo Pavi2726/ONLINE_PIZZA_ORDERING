@@ -1,6 +1,6 @@
 # Setup Guide — Pizza Ordering System
 
-Complete deployment setup for the Sriya Pandey module (US-001 to US-007).
+Complete deployment setup for the full application (US-001 to US-018): customer registration/login, pizza browsing, cart & checkout, coupons, order history/edit/cancel, and admin management of pizzas, coupons, customers, and orders.
 
 ---
 
@@ -128,9 +128,15 @@ Application URL: http://localhost:8080
 | Customer login | http://localhost:8080/login |
 | Customer register | http://localhost:8080/register |
 | Pizza menu | http://localhost:8080/pizzas |
+| Cart | http://localhost:8080/cart |
+| Checkout | http://localhost:8080/orders/checkout |
+| Order history | http://localhost:8080/orders/history |
 | Admin login | http://localhost:8080/admin/login |
 | Admin dashboard | http://localhost:8080/admin/dashboard |
 | Manage pizzas | http://localhost:8080/admin/pizzas |
+| Manage coupons | http://localhost:8080/admin/coupons |
+| Manage customers | http://localhost:8080/admin/customers |
+| Manage orders | http://localhost:8080/admin/orders |
 
 ---
 
@@ -157,10 +163,68 @@ Application URL: http://localhost:8080
 - Delete pizza → DB row and Cloudinary image removed.
 - Direct `/admin/pizzas` without login → redirected to admin login.
 
-### US-007 Place Order
-- Login as customer, order from `/pizzas`.
-- Totals calculated server-side (8% tax).
+### US-007 Place Order (cart-based checkout)
+- Login as a customer, browse `/pizzas`, and add one or more pizzas to the cart.
+- Open `/cart` to review/adjust quantities, then proceed to `/orders/checkout`.
+- Submit the order; totals (subtotal, discount if a coupon was applied, 8% tax, grand total) are calculated server-side.
 - Confirmation at `/orders/success/{orderNumber}`.
+- Note: the app used to place orders directly from a single-pizza form at `/orders/new`; that route is no longer linked from any page and is not part of the current flow.
+
+### US-008 Apply Coupon
+- From `/cart`, enter an active coupon code (created by an admin — see US-012) and submit.
+- A valid, active code discounts the cart total; an unknown or inactive code shows an error and leaves the cart unchanged.
+- The coupon is re-checked when the order is actually placed, not just when it's applied to the cart.
+
+### US-009 View Order History
+- Login as a customer and open `/orders/history`.
+- Confirm every past order placed by that customer is listed with its current status.
+
+### US-010 Update Order
+- From `/orders/history`, open "Edit" on an order that is still `PLACED` and was placed within the last 5 minutes.
+- Adjust item quantities, add another pizza, or update the delivery address/phone, and confirm the changes persist.
+- After the 5-minute window (or once the order has moved past `PLACED`), editing is no longer available.
+
+### US-011 Cancel Order
+- From `/orders/history`, cancel an order that is still `PLACED`.
+- Confirm its status becomes `CANCELLED`.
+- Attempting to cancel an already-cancelled order, or one that's moved past `PLACED`, is rejected.
+
+### US-012–014 Admin Coupon Management
+- Login at `/admin/login`, open `/admin/coupons`.
+- Create a coupon (code, discount percentage, active flag) — a duplicate code is rejected.
+- Edit an existing coupon's discount or active status.
+- Delete a coupon and confirm it no longer appears in the list.
+
+### US-015 Admin: View Customers
+- Open `/admin/customers`; confirm every registered customer is listed.
+- Direct access without an admin session redirects to `/admin/login`.
+
+### US-016 Admin: Manage Customers
+- From `/admin/customers`, edit a customer's name, email, phone, or address.
+- Changing the email/phone to one already used by a *different* customer is rejected with a validation error.
+- This story is edit-only by design — there is no deactivate/reactivate control.
+
+### US-017 Admin: View Orders
+- Open `/admin/orders`; confirm every customer's orders are listed.
+- Open an order's detail page and confirm items, totals, and customer info render correctly.
+
+### US-018 Admin: Manage Orders
+- From an order's detail page, move its status forward: `PLACED → PROCESSING → OUT_FOR_DELIVERY → DELIVERED`.
+- `CANCELLED` is only reachable from `PLACED` or `PROCESSING`.
+- Skipping ahead in the sequence, or transitioning out of a terminal status (`DELIVERED` or `CANCELLED`), is rejected.
+- Confirm the customer's `/orders/history` page picks up the new status.
+
+---
+
+## 8. Automated Testing
+
+The manual checks in §7 are also covered by an automated JUnit 5 suite (unit, `@WebMvcTest` controller, and H2-backed `@SpringBootTest` integration tiers) spanning all 18 user stories above. Run it with:
+
+```bash
+mvn test
+```
+
+This runs entirely against an in-memory H2 database — it does not require `.env`, network access, or the live Aiven MySQL instance, and it never touches production data.
 
 ---
 

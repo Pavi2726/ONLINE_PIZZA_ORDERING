@@ -133,7 +133,23 @@ The application follows a layered architecture consisting of:
 * Controller
 * View (Thymeleaf)
 
-Development follows the **Test Driven Development (TDD)** approach with unit and integration testing.
+---
+
+## Testing
+
+The project has an automated JUnit 5 suite covering all 18 user stories across three layers:
+
+* **Unit tests** — Mockito-based, no Spring context; business logic and validation rules.
+* **Controller tests** — `@WebMvcTest` slices; routing, auth boundaries, and request/response behavior.
+* **Integration tests** — `@SpringBootTest` against an in-memory H2 database; full request → controller → service → repository flows.
+
+Run the whole suite with:
+
+```bash
+mvn test
+```
+
+The suite runs entirely against H2 and never touches the live MySQL database configured in `.env` — no additional setup is required to run it.
 
 ---
 
