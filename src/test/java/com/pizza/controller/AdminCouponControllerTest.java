@@ -18,12 +18,14 @@ import org.springframework.http.HttpMethod;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
@@ -89,6 +91,19 @@ class AdminCouponControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(view().name("admin-coupon-list"))
                 .andExpect(model().attribute("coupons", List.of(coupon)));
+    }
+
+    @Test
+    void list_withAdminSession_deleteFormCarriesConfirmOnsubmit() throws Exception {
+        Coupon coupon = TestDataFactory.coupon();
+        when(couponService.findAll()).thenReturn(List.of(coupon));
+
+        // Consistency with the admin-pizza-list delete pattern: the confirm()
+        // guard belongs on the <form>'s onsubmit, not the <button>'s onclick.
+        mockMvc.perform(request(HttpMethod.GET, "/admin/coupons").session(adminSession()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString(
+                        "onsubmit=\"return confirm('Are you sure you want to delete this coupon?');\"")));
     }
 
     // ---------------------------------------------------------------- add form

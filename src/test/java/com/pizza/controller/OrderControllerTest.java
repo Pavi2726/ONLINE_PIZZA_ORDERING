@@ -22,11 +22,13 @@ import org.springframework.http.HttpMethod;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -107,6 +109,26 @@ class OrderControllerTest {
         mockMvc.perform(request(HttpMethod.GET, "/orders/history").session(customerSession(customer)))
                 .andExpect(status().isOk())
                 .andExpect(view().name("order-history"));
+    }
+
+    @Test
+    void viewOrderHistory_withPlacedOrder_cancelFormCarriesConfirmOnsubmit() throws Exception {
+        Customer customer = TestDataFactory.customer();
+        customer.setId(1L);
+        Order order = TestDataFactory.order(customer, LocalDateTime.now(), "PLACED");
+        order.setId(1L);
+        order.setCreatedAt(LocalDateTime.now());
+        Pizza pizza = TestDataFactory.pizza();
+        order.addOrderItem(TestDataFactory.orderItem(order, pizza, 1));
+
+        when(orderService.getOrderHistory(1L)).thenReturn(List.of(order));
+
+        // Consistency with the admin-pizza-list delete pattern: the confirm()
+        // guard belongs on the <form>'s onsubmit, not the <button>'s onclick.
+        mockMvc.perform(request(HttpMethod.GET, "/orders/history").session(customerSession(customer)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString(
+                        "onsubmit=\"return confirm('Are you sure you want to cancel this order?');\"")));
     }
 
     // ------------------------------------------------------------ checkout
