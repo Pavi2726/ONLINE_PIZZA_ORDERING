@@ -141,4 +141,16 @@ public void clearCart(String username) {
 
     cartRepository.save(cart);
 }
+
+/**
+ * Total quantity across all cart lines (not the number of distinct lines),
+ * used for the navbar cart badge. Uses a dedicated aggregate query so it
+ * doesn't load the full Cart.cartItems/CartItem.pizza EAGER graph just to
+ * count.
+ */
+@Transactional(readOnly = true)
+public int getItemCount(String username) {
+    Integer sum = cartItemRepository.sumQuantityByCartUsername(username);
+    return sum == null ? 0 : sum;
+}
 }

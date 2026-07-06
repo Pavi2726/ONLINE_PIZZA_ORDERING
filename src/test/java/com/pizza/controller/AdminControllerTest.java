@@ -3,6 +3,7 @@ package com.pizza.controller;
 import com.pizza.entity.Admin;
 import com.pizza.exception.InvalidCredentialsException;
 import com.pizza.service.AdminService;
+import com.pizza.service.CartService;
 import com.pizza.service.PizzaService;
 import com.pizza.testsupport.TestDataFactory;
 import com.pizza.util.SessionUtil;
@@ -45,6 +46,13 @@ class AdminControllerTest {
 
     @MockBean
     private PizzaService pizzaService;
+
+    // GlobalModelAdvice (loaded in every @WebMvcTest slice) now depends on
+    // CartService for the navbar cart-badge model attribute; admin pages have
+    // no logged-in customer so it's never actually invoked, but the bean must
+    // still exist for the ApplicationContext to start.
+    @MockBean
+    private CartService cartService;
 
     private MockHttpSession adminSession() {
         MockHttpSession session = new MockHttpSession();

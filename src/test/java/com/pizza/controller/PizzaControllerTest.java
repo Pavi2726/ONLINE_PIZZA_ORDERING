@@ -1,6 +1,7 @@
 package com.pizza.controller;
 
 import com.pizza.entity.Pizza;
+import com.pizza.service.CartService;
 import com.pizza.service.PizzaService;
 import com.pizza.testsupport.TestDataFactory;
 import java.math.BigDecimal;
@@ -34,6 +35,13 @@ class PizzaControllerTest {
 
     @MockBean
     private PizzaService pizzaService;
+
+    // GlobalModelAdvice (loaded in every @WebMvcTest slice) now depends on
+    // CartService for the navbar cart-badge model attribute; /pizzas is
+    // reachable with no session at all, so it's never actually invoked, but
+    // the bean must still exist for the ApplicationContext to start.
+    @MockBean
+    private CartService cartService;
 
     @Test
     void list_isReachableWithNoSessionAtAll() throws Exception {

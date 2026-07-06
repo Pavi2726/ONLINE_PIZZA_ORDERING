@@ -228,4 +228,28 @@ class CartServiceTest {
         assertThat(item.getQuantity()).isEqualTo(50);
         verify(cartItemRepository, never()).save(any(CartItem.class));
     }
+
+    // ---------------------------------------------------------------- getItemCount (navbar badge)
+
+    @Test
+    void getItemCount_returnsZero_whenCartHasNoItemsOrNoCartRowYet() {
+        // COALESCE(SUM(...), 0) protects against a null aggregate, but the
+        // service must not blow up with an NPE even if the repository itself
+        // ever returned a bare null.
+        when(cartItemRepository.sumQuantityByCartUsername("jane@example.com")).thenReturn(null);
+
+        int count = cartService.getItemCount("jane@example.com");
+
+        assertThat(count).isEqualTo(0);
+    }
+
+    @Test
+    void getItemCount_returnsSummedQuantity_notLineCount_whenCartHasMultipleLines() {
+        // Two distinct lines (2 + 4 units) must report 6, not 2.
+        when(cartItemRepository.sumQuantityByCartUsername("jane@example.com")).thenReturn(6);
+
+        int count = cartService.getItemCount("jane@example.com");
+
+        assertThat(count).isEqualTo(6);
+    }
 }

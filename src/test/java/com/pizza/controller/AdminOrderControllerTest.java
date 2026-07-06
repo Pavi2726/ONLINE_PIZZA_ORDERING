@@ -4,6 +4,7 @@ import com.pizza.entity.Customer;
 import com.pizza.entity.Order;
 import com.pizza.entity.Pizza;
 import com.pizza.service.AdminOrderService;
+import com.pizza.service.CartService;
 import com.pizza.testsupport.TestDataFactory;
 import com.pizza.util.SessionUtil;
 import java.time.LocalDateTime;
@@ -52,6 +53,13 @@ class AdminOrderControllerTest {
 
     @MockBean
     private AdminOrderService adminOrderService;
+
+    // GlobalModelAdvice (loaded in every @WebMvcTest slice) now depends on
+    // CartService for the navbar cart-badge model attribute; admin pages have
+    // no logged-in customer so it's never actually invoked, but the bean must
+    // still exist for the ApplicationContext to start.
+    @MockBean
+    private CartService cartService;
 
     private MockHttpSession adminSession() {
         MockHttpSession session = new MockHttpSession();

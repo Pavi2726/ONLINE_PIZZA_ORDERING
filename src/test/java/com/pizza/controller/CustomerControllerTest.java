@@ -1,6 +1,7 @@
 package com.pizza.controller;
 
 import com.pizza.entity.Pizza;
+import com.pizza.service.CartService;
 import com.pizza.service.PizzaService;
 import com.pizza.testsupport.TestDataFactory;
 import java.math.BigDecimal;
@@ -31,6 +32,12 @@ class CustomerControllerTest {
 
     @MockBean
     private PizzaService pizzaService;
+
+    // GlobalModelAdvice (loaded in every @WebMvcTest slice) now depends on
+    // CartService for the navbar cart-badge model attribute; the bean must
+    // exist for the ApplicationContext to start even where it's unused.
+    @MockBean
+    private CartService cartService;
 
     @Test
     void home_rendersHomeView_withOnlyAvailablePizzasFeatured() throws Exception {

@@ -31,7 +31,14 @@
                 </li>
                
                 <li class="nav-item" th:if="${currentCustomer}">
-                    <a class="nav-link" th:href="@{/cart}"><i class="bi bi-cart3"></i> Cart</a>
+                    <a class="nav-link" th:href="@{/cart}">
+                        <i class="bi bi-cart3"></i> Cart
+                        <span th:if="${cartItemCount != null and cartItemCount > 0}"
+                              class="badge rounded-pill bg-danger"
+                              th:text="${cartItemCount}"
+                              aria-label="items in cart">
+                        </span>
+                    </a>
                 </li>
                 <li class="nav-item" th:if="${currentCustomer}">
                     <a class="nav-link" th:href="@{/orders/history}"><i class="bi bi-clock-history"></i> Order History</a>
