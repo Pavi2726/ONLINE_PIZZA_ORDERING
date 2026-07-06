@@ -28,6 +28,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
+import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
@@ -96,7 +98,10 @@ class AdminPizzaControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(view().name("admin-pizza-list"))
                 .andExpect(model().attribute("pizzas", List.of(pizza)))
-                .andExpect(model().attribute("categories", List.of("Classic")));
+                .andExpect(model().attribute("categories", List.of("Classic")))
+                // Regression guard: the mobile-offcanvas close button must carry an
+                // aria-label (fixed via the shared mobileSidebar(active) fragment).
+                .andExpect(content().string(containsString("aria-label=\"Close\"")));
     }
 
     // ---------------------------------------------------------------- add form

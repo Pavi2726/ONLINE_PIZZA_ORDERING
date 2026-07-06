@@ -26,6 +26,11 @@ main, section {
 .app-navbar .nav-link:hover {
     color: #ffe5b4;
 }
+.app-navbar .nav-link:focus-visible,
+.admin-nav .nav-link:focus-visible {
+    outline: 2px solid var(--brand-accent);
+    outline-offset: 2px;
+}
 
 /* Hero */
 .hero {

@@ -9,17 +9,7 @@
     <nav th:replace="~{fragments/admin-layout :: topbar}"></nav>
 
     <!-- Mobile Sidebar -->
-    <div class="offcanvas offcanvas-start admin-sidebar" tabindex="-1" id="adminSidebar">
-        <div class="offcanvas-header">
-            <h5 class="offcanvas-title">Menu</h5>
-            <button type="button" class="btn-close btn-close-white"
-                data-bs-dismiss="offcanvas"></button>
-        </div>
-
-        <div class="offcanvas-body">
-            <div th:replace="~{fragments/admin-layout :: sidebarLinks('customers')}"></div>
-        </div>
-    </div>
+    <div th:replace="~{fragments/admin-layout :: mobileSidebar('customers')}"></div>
 
     <div class="container-fluid">
 
