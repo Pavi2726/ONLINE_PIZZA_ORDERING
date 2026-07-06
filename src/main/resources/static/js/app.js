@@ -102,4 +102,30 @@
             alert.classList.remove("show");
         }, 5000);
     });
+
+    // ---- Dark mode toggle ----
+    const themeToggle = document.getElementById("themeToggle");
+    if (themeToggle) {
+        const themeIcon = themeToggle.querySelector("i");
+
+        const updateIcon = function (theme) {
+            if (theme === "dark") {
+                themeIcon.classList.remove("bi-moon-stars");
+                themeIcon.classList.add("bi-sun-fill");
+            } else {
+                themeIcon.classList.remove("bi-sun-fill");
+                themeIcon.classList.add("bi-moon-stars");
+            }
+        };
+
+        updateIcon(document.documentElement.getAttribute("data-bs-theme"));
+
+        themeToggle.addEventListener("click", function () {
+            const current = document.documentElement.getAttribute("data-bs-theme");
+            const next = current === "dark" ? "light" : "dark";
+            document.documentElement.setAttribute("data-bs-theme", next);
+            localStorage.setItem("pizza-theme", next);
+            updateIcon(next);
+        });
+    }
 })();

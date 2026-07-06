@@ -117,3 +117,8 @@ main, section {
     background: linear-gradient(135deg, #1d2b3a, #2c3e50);
     min-height: 100vh;
 }
+
+/* ============================ Dark mode ============================ */
+[data-bs-theme="dark"] .admin-body {
+    background: #12161c;
+}
