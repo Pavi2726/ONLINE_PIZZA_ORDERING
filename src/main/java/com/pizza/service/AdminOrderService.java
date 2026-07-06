@@ -1,5 +1,6 @@
 package com.pizza.service;
 
+import java.util.Comparator;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -22,6 +23,42 @@ public class AdminOrderService {
     @Transactional(readOnly = true)
     public List<Order> findAll() {
         return orderRepository.findAllOrdered();
+    }
+
+    /**
+     * Order list query supporting search, status filter and total/date sort
+     * (Task 9), mirroring {@link PizzaService#search}'s branch-in-Java /
+     * in-memory-{@link Comparator} pattern.
+     *
+     * @param search optional order-number/customer-name fragment
+     * @param status optional exact {@link OrderStatus} name ("" or null = all)
+     * @param sort   "totalAsc", "totalDesc", "oldest" or null ("newest")
+     */
+    @Transactional(readOnly = true)
+    public List<Order> search(String search, String status, String sort) {
+        boolean hasSearch = search != null && !search.isBlank();
+        boolean hasStatus = status != null && !status.isBlank();
+
+        List<Order> results;
+        if (hasSearch && hasStatus) {
+            results = orderRepository.searchByTermAndStatus(search.trim(), status);
+        } else if (hasStatus) {
+            results = orderRepository.findByStatus(status);
+        } else if (hasSearch) {
+            results = orderRepository.searchByOrderNumberOrCustomerName(search.trim());
+        } else {
+            results = orderRepository.findAllOrdered();
+        }
+
+        if ("totalAsc".equals(sort)) {
+            results.sort(Comparator.comparing(Order::getTotalAmount));
+        } else if ("totalDesc".equals(sort)) {
+            results.sort(Comparator.comparing(Order::getTotalAmount).reversed());
+        } else if ("oldest".equals(sort)) {
+            results.sort(Comparator.comparing(Order::getCreatedAt));
+        }
+        // "newest" (or no sort) needs no re-sort: every branch above already returns createdAt DESC.
+        return results;
     }
 
     @Transactional(readOnly = true)

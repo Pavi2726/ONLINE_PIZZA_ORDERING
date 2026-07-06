@@ -23,11 +23,17 @@ public class AdminOrderController {
 
     private final AdminOrderService adminOrderService;
 
-    // List All Orders
+    // List All Orders (with search/filter/sort, Task 9)
     @GetMapping
-    public String list(Model model) {
-        List<Order> orders = adminOrderService.findAll();
+    public String list(@RequestParam(required = false) String search,
+                        @RequestParam(required = false) String status,
+                        @RequestParam(required = false) String sort,
+                        Model model) {
+        List<Order> orders = adminOrderService.search(search, status, sort);
         model.addAttribute("orders", orders);
+        model.addAttribute("search", search);
+        model.addAttribute("selectedStatus", status);
+        model.addAttribute("sort", sort);
         return "admin-order-list";
     }
 

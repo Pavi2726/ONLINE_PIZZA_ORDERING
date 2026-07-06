@@ -19,7 +19,11 @@ import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -142,5 +146,29 @@ class AdminOrderManagementIntegrationTest extends AbstractIntegrationTest {
         entityManager.flush();
         entityManager.clear();
         assertThat(orderRepository.findByIdWithDetails(id).orElseThrow().getStatus()).isEqualTo("CANCELLED");
+    }
+
+    // ------------------------------------------------- search/filter/sort (Task 9)
+
+    /**
+     * Real orders with different statuses, real {@link OrderRepository} query
+     * methods (fetch-joined, same shape as {@code findAllOrdered()}), real
+     * template render: {@code GET /admin/orders?status=X} must show only
+     * orders in that status - proving the new repository queries don't hit a
+     * lazy-loading error (the template reads {@code order.customer.fullName}
+     * and {@code order.orderItems.size()}) and that the filter actually narrows
+     * the result set end-to-end.
+     */
+    @Test
+    void listOrders_filteredByStatus_rendersOnlyMatchingStatusOrders() throws Exception {
+        Order placed = seedOrder("PLACED");
+        Order delivered = seedOrder("DELIVERED");
+        entityManager.flush();
+        entityManager.clear();
+
+        mockMvc.perform(get("/admin/orders").param("status", "DELIVERED").session(adminSession()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString(delivered.getOrderNumber())))
+                .andExpect(content().string(not(containsString(placed.getOrderNumber()))));
     }
 }

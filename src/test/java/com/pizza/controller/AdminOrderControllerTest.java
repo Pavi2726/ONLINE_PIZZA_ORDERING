@@ -87,7 +87,10 @@ class AdminOrderControllerTest {
     // --------------------------------------------------------------------- list
 
     @Test
-    void list_withAdminSession_rendersOrderList() throws Exception {
+    void list_withNoParams_isBackwardCompatible_dispatchesToSearchWithAllNulls() throws Exception {
+        // Task 9: the controller now always calls adminOrderService.search(...);
+        // with no query params it must call search(null, null, null), which the
+        // service guarantees produces exactly findAll()'s output.
         Customer customer = TestDataFactory.customer();
         Order order = TestDataFactory.order(customer);
         order.setId(1L);
@@ -95,12 +98,40 @@ class AdminOrderControllerTest {
         Pizza pizza = TestDataFactory.pizza();
         order.addOrderItem(TestDataFactory.orderItem(order, pizza, 2));
 
-        when(adminOrderService.findAll()).thenReturn(List.of(order));
+        when(adminOrderService.search(null, null, null)).thenReturn(List.of(order));
 
         mockMvc.perform(request(HttpMethod.GET, "/admin/orders").session(adminSession()))
                 .andExpect(status().isOk())
                 .andExpect(view().name("admin-order-list"))
-                .andExpect(model().attribute("orders", List.of(order)));
+                .andExpect(model().attribute("orders", List.of(order)))
+                .andExpect(model().attribute("search", (Object) null))
+                .andExpect(model().attribute("selectedStatus", (Object) null))
+                .andExpect(model().attribute("sort", (Object) null));
+
+        verify(adminOrderService).search(null, null, null);
+    }
+
+    @Test
+    void list_withSearchStatusAndSortParams_bindsThemToServiceAndModel() throws Exception {
+        Customer customer = TestDataFactory.customer();
+        Order order = TestDataFactory.order(customer, LocalDateTime.now(), "PROCESSING");
+        order.setId(2L);
+
+        when(adminOrderService.search("jane", "PROCESSING", "oldest")).thenReturn(List.of(order));
+
+        mockMvc.perform(request(HttpMethod.GET, "/admin/orders")
+                        .param("search", "jane")
+                        .param("status", "PROCESSING")
+                        .param("sort", "oldest")
+                        .session(adminSession()))
+                .andExpect(status().isOk())
+                .andExpect(view().name("admin-order-list"))
+                .andExpect(model().attribute("orders", List.of(order)))
+                .andExpect(model().attribute("search", "jane"))
+                .andExpect(model().attribute("selectedStatus", "PROCESSING"))
+                .andExpect(model().attribute("sort", "oldest"));
+
+        verify(adminOrderService).search("jane", "PROCESSING", "oldest");
     }
 
     // ------------------------------------------------------------------- detail

@@ -1,5 +1,9 @@
 package com.pizza.service;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -18,11 +22,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 /**
  * Pure Mockito unit tests for {@link AdminOrderService} (US-017, US-018):
- * admin-driven order status transitions.
+ * admin-driven order status transitions, plus (Task 9) the additive
+ * search/filter/sort dispatch that mirrors {@link PizzaService#search}.
  */
 @ExtendWith(MockitoExtension.class)
 class AdminOrderServiceTest {
@@ -32,6 +38,148 @@ class AdminOrderServiceTest {
 
     @InjectMocks
     private AdminOrderService adminOrderService;
+
+    // ---------------------------------------------------------------- search dispatch
+
+    @Test
+    void search_withNoFilters_dispatchesToFindAllOrdered() {
+        List<Order> all = List.of(TestDataFactory.order(TestDataFactory.customer()));
+        when(orderRepository.findAllOrdered()).thenReturn(all);
+
+        List<Order> result = adminOrderService.search(null, null, null);
+
+        assertThat(result).isEqualTo(all);
+        verify(orderRepository).findAllOrdered();
+        verifyNoMoreInteractions(orderRepository);
+    }
+
+    @Test
+    void search_withNoFilters_matchesFindAllOutput() {
+        // Hard constraint from the brief: search(null, null, null) must
+        // produce exactly what the untouched findAll() returns.
+        List<Order> all = List.of(TestDataFactory.order(TestDataFactory.customer()));
+        when(orderRepository.findAllOrdered()).thenReturn(all);
+
+        assertThat(adminOrderService.search(null, null, null)).isEqualTo(adminOrderService.findAll());
+    }
+
+    @Test
+    void search_bySearchTermOnly_dispatchesToSearchByOrderNumberOrCustomerName() {
+        List<Order> matches = List.of(TestDataFactory.order(TestDataFactory.customer()));
+        when(orderRepository.searchByOrderNumberOrCustomerName("jane")).thenReturn(matches);
+
+        List<Order> result = adminOrderService.search("jane", null, null);
+
+        assertThat(result).isEqualTo(matches);
+        verify(orderRepository).searchByOrderNumberOrCustomerName("jane");
+        verifyNoMoreInteractions(orderRepository);
+    }
+
+    @Test
+    void search_withSearchTerm_trimsWhitespaceBeforeQuerying() {
+        List<Order> matches = List.of(TestDataFactory.order(TestDataFactory.customer()));
+        when(orderRepository.searchByOrderNumberOrCustomerName("jane")).thenReturn(matches);
+
+        adminOrderService.search("  jane  ", null, null);
+
+        verify(orderRepository).searchByOrderNumberOrCustomerName("jane");
+    }
+
+    @Test
+    void search_byStatusOnly_dispatchesToFindByStatus() {
+        List<Order> matches = List.of(
+                TestDataFactory.order(TestDataFactory.customer(), LocalDateTime.now(), "PROCESSING"));
+        when(orderRepository.findByStatus("PROCESSING")).thenReturn(matches);
+
+        List<Order> result = adminOrderService.search(null, "PROCESSING", null);
+
+        assertThat(result).isEqualTo(matches);
+        verify(orderRepository).findByStatus("PROCESSING");
+        verifyNoMoreInteractions(orderRepository);
+    }
+
+    @Test
+    void search_bySearchTermAndStatus_dispatchesToCombinedQuery() {
+        List<Order> matches = List.of(TestDataFactory.order(TestDataFactory.customer()));
+        when(orderRepository.searchByTermAndStatus("jane", "PROCESSING")).thenReturn(matches);
+
+        List<Order> result = adminOrderService.search("jane", "PROCESSING", null);
+
+        assertThat(result).isEqualTo(matches);
+        verify(orderRepository).searchByTermAndStatus("jane", "PROCESSING");
+        verifyNoMoreInteractions(orderRepository);
+    }
+
+    @Test
+    void search_withBlankSearchAndStatus_treatsBlankAsAbsent_dispatchesToFindAllOrdered() {
+        List<Order> all = List.of(TestDataFactory.order(TestDataFactory.customer()));
+        when(orderRepository.findAllOrdered()).thenReturn(all);
+
+        List<Order> result = adminOrderService.search("   ", "", null);
+
+        assertThat(result).isEqualTo(all);
+        verify(orderRepository).findAllOrdered();
+        verifyNoMoreInteractions(orderRepository);
+    }
+
+    // ---------------------------------------------------------------- search sort
+
+    private Order orderWithTotalAndCreatedAt(BigDecimal total, LocalDateTime createdAt) {
+        Order order = TestDataFactory.order(TestDataFactory.customer(), createdAt, "PLACED",
+                total, new BigDecimal("1.00"), total);
+        order.setCreatedAt(createdAt);
+        return order;
+    }
+
+    @Test
+    void search_sortsByTotalAscending() {
+        Order cheap = orderWithTotalAndCreatedAt(new BigDecimal("11.00"), LocalDateTime.now());
+        Order pricey = orderWithTotalAndCreatedAt(new BigDecimal("55.00"), LocalDateTime.now());
+        when(orderRepository.findAllOrdered()).thenReturn(new ArrayList<>(List.of(pricey, cheap)));
+
+        List<Order> result = adminOrderService.search(null, null, "totalAsc");
+
+        assertThat(result).containsExactly(cheap, pricey);
+    }
+
+    @Test
+    void search_sortsByTotalDescending() {
+        Order cheap = orderWithTotalAndCreatedAt(new BigDecimal("11.00"), LocalDateTime.now());
+        Order pricey = orderWithTotalAndCreatedAt(new BigDecimal("55.00"), LocalDateTime.now());
+        when(orderRepository.findAllOrdered()).thenReturn(new ArrayList<>(List.of(cheap, pricey)));
+
+        List<Order> result = adminOrderService.search(null, null, "totalDesc");
+
+        assertThat(result).containsExactly(pricey, cheap);
+    }
+
+    @Test
+    void search_sortsByOldestFirst() {
+        LocalDateTime earlier = LocalDateTime.now().minusDays(1);
+        LocalDateTime later = LocalDateTime.now();
+        Order older = orderWithTotalAndCreatedAt(new BigDecimal("20.00"), earlier);
+        Order newer = orderWithTotalAndCreatedAt(new BigDecimal("20.00"), later);
+        // Repository already returns createdAt DESC (newer first); "oldest" sort must reverse that.
+        when(orderRepository.findAllOrdered()).thenReturn(new ArrayList<>(List.of(newer, older)));
+
+        List<Order> result = adminOrderService.search(null, null, "oldest");
+
+        assertThat(result).containsExactly(older, newer);
+    }
+
+    @Test
+    void search_withNewestOrNoSort_leavesRepositoryOrderUnchanged() {
+        LocalDateTime earlier = LocalDateTime.now().minusDays(1);
+        LocalDateTime later = LocalDateTime.now();
+        Order newer = orderWithTotalAndCreatedAt(new BigDecimal("20.00"), later);
+        Order older = orderWithTotalAndCreatedAt(new BigDecimal("20.00"), earlier);
+        // Every dispatch branch already returns createdAt DESC, so "newest" (or
+        // no sort at all) must be a no-op re-sort.
+        when(orderRepository.findAllOrdered()).thenReturn(new ArrayList<>(List.of(newer, older)));
+
+        assertThat(adminOrderService.search(null, null, "newest")).containsExactly(newer, older);
+        assertThat(adminOrderService.search(null, null, null)).containsExactly(newer, older);
+    }
 
     // ---------------------------------------------------------------- getById
 
