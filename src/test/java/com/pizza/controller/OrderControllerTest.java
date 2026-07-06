@@ -6,19 +6,15 @@ import com.pizza.entity.Order;
 import com.pizza.entity.Pizza;
 import com.pizza.service.CartService;
 import com.pizza.service.OrderService;
-import com.pizza.service.PizzaService;
 import com.pizza.testsupport.TestDataFactory;
 import com.pizza.util.SessionUtil;
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.springframework.beans.NotReadablePropertyException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -26,7 +22,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -44,39 +39,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * interceptor is a {@code @Component} {@code HandlerInterceptor} and loads
  * automatically in this slice.
  *
- * <p><b>Dead-route characterization test:</b> {@code showOrderForm_} below is
- * the key test in this class. Reading the source confirms the whole chain:
- * {@code OrderController.showOrderForm} renders {@code place-order.html},
- * whose form does {@code th:field="*{pizzaId}"} and {@code th:field="*{quantity}"}
- * against the {@code orderDTO} model attribute - but {@link
- * com.pizza.dto.OrderDTO} only has {@code deliveryAddress}, {@code phone} and
- * {@code couponCode}; it has no {@code pizzaId}/{@code quantity} properties.
- * {@code @WebMvcTest} auto-configures the real Thymeleaf {@code ViewResolver}
- * (it is not mocked), so rendering this view for a real request throws
- * {@link org.springframework.beans.NotReadablePropertyException} while
- * evaluating {@code *{pizzaId}}.
- *
- * <p><b>This does NOT surface as a handled 500 via {@code
- * GlobalExceptionHandler}</b> - that was verified empirically, not assumed.
- * {@code DispatcherServlet.doDispatch} only routes exceptions thrown by
- * <i>handler invocation</i> (the try/catch around {@code ha.handle(...)})
- * through {@code processHandlerException}, which is what lets {@code
- * @ExceptionHandler} methods in {@code GlobalExceptionHandler} run. View
- * rendering (Thymeleaf's {@code TemplateEngine.process}) happens later, in
- * {@code DispatcherServlet.render}, called from {@code processDispatchResult}
- * - a step that sits <i>outside</i> that try/catch. A rendering exception
- * therefore propagates straight up out of {@code doDispatch}/{@code
- * doService}/{@code processRequest} and out of {@code MockMvc.perform(...)}
- * itself; {@code GlobalExceptionHandler.handleGeneric} is never invoked, and
- * no {@code MvcResult}/HTTP status is ever produced for this slice test to
- * assert on. (Confirmed by running this exact test and inspecting the
- * resulting stack trace: {@code NotReadablePropertyException} bubbles from
- * {@code ThymeleafView.render} through {@code DispatcherServlet.render}
- * straight into the test method - no {@code ExceptionHandlerExceptionResolver}
- * frame appears anywhere in it.) This route is unreachable without an
- * uncaught exception today; the test exists to document that fact precisely,
- * not to assert the "correct" (200 view) or the "plausible" (clean 500
- * response) outcome.
+ * <p>Bug #1/#7 fix: the dead {@code GET /orders/new}/{@code POST /orders}
+ * legacy single-pizza order form has been removed entirely (along with
+ * {@code place-order.html} and the unused {@code EditOrderDTO}/{@code
+ * EditOrderItemDTO}/{@code OrderService.getEditOrder()}), so {@code
+ * OrderController} no longer depends on {@code PizzaService} at all.</p>
  */
 @WebMvcTest(OrderController.class)
 class OrderControllerTest {
@@ -86,9 +53,6 @@ class OrderControllerTest {
 
     @MockBean
     private OrderService orderService;
-
-    @MockBean
-    private PizzaService pizzaService;
 
     @MockBean
     private CartService cartService;
@@ -103,7 +67,6 @@ class OrderControllerTest {
 
     static Stream<Arguments> everyRoute() {
         return Stream.of(
-                Arguments.of(HttpMethod.GET, "/orders/new?pizzaId=1"),
                 Arguments.of(HttpMethod.GET, "/orders/history"),
                 Arguments.of(HttpMethod.GET, "/orders/checkout"),
                 Arguments.of(HttpMethod.POST, "/orders/place"),
@@ -124,49 +87,7 @@ class OrderControllerTest {
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/login"));
 
-        verifyNoInteractions(orderService, pizzaService, cartService);
-    }
-
-    // --------------------------------------------------- /orders/new (dead route)
-
-    @Test
-    void showOrderForm_withValidSessionAndAvailablePizza_throwsDuringViewRendering_notCaughtByGlobalExceptionHandler()
-            throws Exception {
-        Customer customer = TestDataFactory.customer();
-        Pizza pizza = TestDataFactory.pizza();
-        pizza.setId(1L);
-        when(pizzaService.findById(1L)).thenReturn(pizza);
-
-        // No .andExpect(status()...) here: the exception happens during view
-        // rendering (see class Javadoc), which is outside the phase that
-        // produces an HTTP response at all in this @WebMvcTest slice - the
-        // exception propagates directly out of perform() itself.
-        Exception thrown = Assertions.assertThrows(Exception.class, () ->
-                mockMvc.perform(request(HttpMethod.GET, "/orders/new")
-                        .param("pizzaId", "1")
-                        .session(customerSession(customer))));
-
-        Throwable root = thrown;
-        while (root.getCause() != null && root.getCause() != root) {
-            root = root.getCause();
-        }
-        assertThat(root).isInstanceOf(NotReadablePropertyException.class);
-        assertThat(root.getMessage()).contains("pizzaId").contains("OrderDTO");
-    }
-
-    @Test
-    void showOrderForm_withUnavailablePizza_redirectsToPizzasWithoutRenderingTemplate() throws Exception {
-        Customer customer = TestDataFactory.customer();
-        Pizza pizza = TestDataFactory.pizza("Out of stock pizza", new BigDecimal("9.99"), "Classic", false);
-        pizza.setId(2L);
-        when(pizzaService.findById(2L)).thenReturn(pizza);
-
-        mockMvc.perform(request(HttpMethod.GET, "/orders/new")
-                        .param("pizzaId", "2")
-                        .session(customerSession(customer)))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/pizzas"))
-                .andExpect(flash().attribute("errorMessage", "This pizza is currently unavailable."));
+        verifyNoInteractions(orderService, cartService);
     }
 
     // ------------------------------------------------------------- history
@@ -219,6 +140,18 @@ class OrderControllerTest {
                 .andExpect(flash().attribute("successMessage", "Order placed successfully!"));
 
         verify(orderService).placeOrder(any(), any());
+    }
+
+    @Test
+    void placeCartOrder_withStaleInvalidCoupon_redirectsToCheckoutWithFlashError() throws Exception {
+        Customer customer = TestDataFactory.customer();
+        when(orderService.placeOrder(any(), any()))
+                .thenThrow(new IllegalArgumentException("Coupon is inactive."));
+
+        mockMvc.perform(request(HttpMethod.POST, "/orders/place").session(customerSession(customer)))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/orders/checkout"))
+                .andExpect(flash().attribute("errorMessage", "Coupon is inactive."));
     }
 
     // -------------------------------------------------------------- cancel

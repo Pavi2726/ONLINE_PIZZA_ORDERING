@@ -28,30 +28,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * {@code @WebMvcTest} slice for {@link CartController}.
  *
- * <p>{@code POST /cart/add} and {@code GET /cart} read the customer principal
- * from the {@link jakarta.servlet.http.HttpSession} themselves via
- * {@link SessionUtil} and redirect to {@code /login} when it is absent -
- * those two routes are session-protected and are covered first below as a
- * baseline.
- *
- * <p><b>The characterization tests below are the important part of this
- * class.</b> Reading {@code CartController} shows that {@code POST
- * /cart/remove}, {@code POST /increase/{cartItemId}} and {@code POST
- * /decrease/{cartItemId}} take no {@code HttpSession} parameter at all and
- * perform no {@link SessionUtil} check whatsoever - they call straight into
- * {@link CartService} using only the raw path/request parameter. {@code POST
- * /cart/apply-coupon} does declare an {@code HttpSession} parameter, but only
- * uses it to stash the applied coupon; it never checks who (if anyone) is
- * logged in. This is a confirmed, real authorization gap: any anonymous
- * caller who guesses or enumerates a {@code cartItemId} can mutate a
- * different customer's cart with no login at all. These tests issue the
- * requests with <b>no {@code .session(...)} call whatsoever</b> - not a
- * differently-scoped session, literally none - and assert the controller
- * still succeeds and still invokes the mocked service. They exist to
- * document this gap precisely; they must fail loudly if someone "fixes" the
- * gap by adding an auth check without updating the test to match, and must
- * NOT be softened to assert a login redirect that the controller does not
- * actually perform.
+ * <p>Bug #2 fix: {@code /cart/**}, {@code /increase/**} and {@code
+ * /decrease/**} are now covered by {@code CustomerAuthInterceptor} (see
+ * {@code WebMvcConfig}), and {@code removeItem}/{@code increaseQuantity}/
+ * {@code decreaseQuantity} thread the logged-in customer's email down into
+ * {@link CartService} so it can verify cart-item ownership. Since {@code
+ * WebMvcTest} slices don't load {@code WebMvcConfig}'s interceptor
+ * registration, the "no session" tests below assert the controller's own
+ * explicit {@code SessionUtil} null-check (the defense-in-depth layer),
+ * which fires the same {@code redirect:/login} outcome the interceptor would
+ * produce in production.</p>
  */
 @WebMvcTest(CartController.class)
 class CartControllerTest {
@@ -123,46 +109,108 @@ class CartControllerTest {
     }
 
     // ============================================================
-    // Characterization tests: NO session attached to the request at all.
+    // Bug #2 fix: NO session attached to the request at all -> redirected to
+    // /login and the service is never invoked (either by CustomerAuthInterceptor,
+    // now registered for these paths in WebMvcConfig, or by the controller's
+    // own SessionUtil null-check as a defense-in-depth backstop).
     // ============================================================
 
     @Test
-    void removeItem_withZeroSessionAttached_stillSucceeds_andInvokesCartService() throws Exception {
-        // No .session(...) call anywhere in this request.
+    void removeItem_withZeroSessionAttached_redirectsToLogin_andNeverCallsCartService() throws Exception {
         mockMvc.perform(post("/cart/remove").param("cartItemId", "7"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/cart"));
+                .andExpect(redirectedUrl("/login"));
 
-        verify(cartService).removeItem(7L);
+        verifyNoInteractions(cartService);
     }
 
     @Test
-    void increaseQuantity_withZeroSessionAttached_stillSucceeds_andInvokesCartService() throws Exception {
+    void increaseQuantity_withZeroSessionAttached_redirectsToLogin_andNeverCallsCartService() throws Exception {
         mockMvc.perform(post("/increase/{cartItemId}", 9L))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/cart"));
+                .andExpect(redirectedUrl("/login"));
 
-        verify(cartService).increaseQuantity(9L);
+        verifyNoInteractions(cartService);
     }
 
     @Test
-    void decreaseQuantity_withZeroSessionAttached_stillSucceeds_andInvokesCartService() throws Exception {
+    void decreaseQuantity_withZeroSessionAttached_redirectsToLogin_andNeverCallsCartService() throws Exception {
         mockMvc.perform(post("/decrease/{cartItemId}", 12L))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/login"));
+
+        verifyNoInteractions(cartService);
+    }
+
+    @Test
+    void applyCoupon_withZeroSessionAttached_redirectsToLogin_andNeverCallsCouponService() throws Exception {
+        mockMvc.perform(post("/cart/apply-coupon").param("couponCode", "SAVE10"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/login"));
+
+        verifyNoInteractions(couponService);
+    }
+
+    // ============================================================
+    // Bug #2 fix: happy path with a valid customer session.
+    // ============================================================
+
+    @Test
+    void removeItem_withCustomerSession_invokesCartServiceWithCustomerEmail() throws Exception {
+        Customer customer = TestDataFactory.customer();
+
+        mockMvc.perform(post("/cart/remove")
+                        .param("cartItemId", "7")
+                        .session(customerSession(customer)))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/cart"));
 
-        verify(cartService).decreaseQuantity(12L);
+        verify(cartService).removeItem(7L, customer.getEmail());
     }
 
     @Test
-    void applyCoupon_withZeroSessionAttached_stillSucceeds_andInvokesCouponService() throws Exception {
-        // applyCoupon does declare an HttpSession parameter, but only to stash
-        // the coupon - Spring auto-vivifies a brand-new, anonymous session for
-        // this request (request.getSession(true)); no login is ever checked.
+    void increaseQuantity_withCustomerSession_invokesCartServiceWithCustomerEmail() throws Exception {
+        Customer customer = TestDataFactory.customer();
+
+        mockMvc.perform(post("/increase/{cartItemId}", 9L).session(customerSession(customer)))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/cart"));
+
+        verify(cartService).increaseQuantity(9L, customer.getEmail());
+    }
+
+    @Test
+    void increaseQuantity_withCustomerSession_flashesErrorMessage_whenCapExceeded() throws Exception {
+        Customer customer = TestDataFactory.customer();
+        org.mockito.Mockito.doThrow(new IllegalArgumentException("Maximum quantity per item is 50."))
+                .when(cartService).increaseQuantity(9L, customer.getEmail());
+
+        mockMvc.perform(post("/increase/{cartItemId}", 9L).session(customerSession(customer)))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/cart"))
+                .andExpect(flash().attribute("errorMessage", "Maximum quantity per item is 50."));
+    }
+
+    @Test
+    void decreaseQuantity_withCustomerSession_invokesCartServiceWithCustomerEmail() throws Exception {
+        Customer customer = TestDataFactory.customer();
+
+        mockMvc.perform(post("/decrease/{cartItemId}", 12L).session(customerSession(customer)))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/cart"));
+
+        verify(cartService).decreaseQuantity(12L, customer.getEmail());
+    }
+
+    @Test
+    void applyCoupon_withCustomerSession_invokesCouponService() throws Exception {
+        Customer customer = TestDataFactory.customer();
         Coupon coupon = TestDataFactory.coupon();
         when(couponService.validateCoupon("SAVE10")).thenReturn(coupon);
 
-        mockMvc.perform(post("/cart/apply-coupon").param("couponCode", "SAVE10"))
+        mockMvc.perform(post("/cart/apply-coupon")
+                        .param("couponCode", "SAVE10")
+                        .session(customerSession(customer)))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/cart"))
                 .andExpect(flash().attribute("successMessage", "Coupon applied successfully!"));

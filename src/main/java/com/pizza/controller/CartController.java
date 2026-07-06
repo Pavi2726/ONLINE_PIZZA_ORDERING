@@ -36,12 +36,16 @@ private final CouponService couponService;
             return "redirect:/login";
         }
 
-        cartService.addPizzaToCart(customer.getEmail(), pizzaId);
+        try {
+            cartService.addPizzaToCart(customer.getEmail(), pizzaId);
 
-        redirectAttributes.addFlashAttribute(
-                "successMessage",
-                "Pizza added to cart successfully!"
-        );
+            redirectAttributes.addFlashAttribute(
+                    "successMessage",
+                    "Pizza added to cart successfully!"
+            );
+        } catch (IllegalArgumentException e) {
+            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+        }
 
         return "redirect:/pizzas";
     }
@@ -83,25 +87,47 @@ public String viewCart(HttpSession session, Model model) {
     return "cart";
 }
 @PostMapping("/cart/remove")
-public String removeItem(@RequestParam Long cartItemId) {
+public String removeItem(@RequestParam Long cartItemId, HttpSession session) {
 
-    System.out.println("REMOVE ITEM ID = " + cartItemId);
+    Customer customer = SessionUtil.getCurrentCustomer(session);
 
-    cartService.removeItem(cartItemId);
+    if (customer == null) {
+        return "redirect:/login";
+    }
+
+    cartService.removeItem(cartItemId, customer.getEmail());
 
     return "redirect:/cart";
 }
 @PostMapping("/increase/{cartItemId}")
-public String increaseQuantity(@PathVariable Long cartItemId) {
+public String increaseQuantity(@PathVariable Long cartItemId,
+                               HttpSession session,
+                               RedirectAttributes redirectAttributes) {
 
-    cartService.increaseQuantity(cartItemId);
+    Customer customer = SessionUtil.getCurrentCustomer(session);
+
+    if (customer == null) {
+        return "redirect:/login";
+    }
+
+    try {
+        cartService.increaseQuantity(cartItemId, customer.getEmail());
+    } catch (IllegalArgumentException e) {
+        redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+    }
 
     return "redirect:/cart";
 }
 @PostMapping("/decrease/{cartItemId}")
-public String decreaseQuantity(@PathVariable Long cartItemId) {
+public String decreaseQuantity(@PathVariable Long cartItemId, HttpSession session) {
 
-    cartService.decreaseQuantity(cartItemId);
+    Customer customer = SessionUtil.getCurrentCustomer(session);
+
+    if (customer == null) {
+        return "redirect:/login";
+    }
+
+    cartService.decreaseQuantity(cartItemId, customer.getEmail());
 
     return "redirect:/cart";
 }

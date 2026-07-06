@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.pizza.dto.CouponDTO;
 import com.pizza.entity.Coupon;
+import com.pizza.exception.ResourceNotFoundException;
 import com.pizza.repository.CouponRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -42,7 +43,7 @@ public class CouponService {
     @Transactional(readOnly = true)
     public Coupon getCouponById(Long id) {
         return couponRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Coupon not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Coupon not found"));
     }
 
    // Update Coupon
@@ -50,9 +51,14 @@ public class CouponService {
     public Coupon updateCoupon(Long id, CouponDTO dto) {
 
         Coupon coupon = couponRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Coupon not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Coupon not found"));
 
-        coupon.setCouponCode(dto.getCouponCode().trim().toUpperCase());
+        String newCode = dto.getCouponCode().trim().toUpperCase();
+        if (couponRepository.existsByCouponCodeAndIdNot(newCode, id)) {
+            throw new IllegalArgumentException("Coupon code already exists.");
+        }
+
+        coupon.setCouponCode(newCode);
         coupon.setDiscountPercentage(dto.getDiscountPercentage());
         coupon.setActive(dto.isActive());
 
@@ -70,10 +76,10 @@ public class CouponService {
 public Coupon validateCoupon(String couponCode) {
 
     Coupon coupon = couponRepository.findByCouponCode(couponCode.trim().toUpperCase())
-            .orElseThrow(() -> new RuntimeException("Invalid coupon code."));
+            .orElseThrow(() -> new IllegalArgumentException("Invalid coupon code."));
 
     if (!coupon.isActive()) {
-        throw new RuntimeException("Coupon is inactive.");
+        throw new IllegalArgumentException("Coupon is inactive.");
     }
 
     return coupon;

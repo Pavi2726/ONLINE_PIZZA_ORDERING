@@ -21,23 +21,23 @@
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- ---- Child / dependent tables first (defensive ordering) ------------
+TRUNCATE TABLE order_items;
+TRUNCATE TABLE cart_item;
 TRUNCATE TABLE orders;
+TRUNCATE TABLE cart;
 
 -- ---- Parent / independent tables -----------------------------------
 TRUNCATE TABLE customers;
 TRUNCATE TABLE admins;
 TRUNCATE TABLE pizzas;
+TRUNCATE TABLE coupons;
 
 -- ---------------------------------------------------------------------
 -- Optional tables: uncomment any that exist in future versions of the
 -- schema. Leaving a TRUNCATE for a non-existent table would error, so
 -- they are commented out until the table is actually added.
 -- ---------------------------------------------------------------------
--- TRUNCATE TABLE order_items;
--- TRUNCATE TABLE cart_items;
--- TRUNCATE TABLE cart;
 -- TRUNCATE TABLE payments;
--- TRUNCATE TABLE coupons;
 -- TRUNCATE TABLE pizza_categories;
 -- TRUNCATE TABLE roles;
 
@@ -48,5 +48,9 @@ SET FOREIGN_KEY_CHECKS = 1;
 --   SELECT 'customers' AS t, COUNT(*) FROM customers
 --   UNION ALL SELECT 'admins', COUNT(*) FROM admins
 --   UNION ALL SELECT 'pizzas', COUNT(*) FROM pizzas
---   UNION ALL SELECT 'orders', COUNT(*) FROM orders;
+--   UNION ALL SELECT 'orders', COUNT(*) FROM orders
+--   UNION ALL SELECT 'order_items', COUNT(*) FROM order_items
+--   UNION ALL SELECT 'cart', COUNT(*) FROM cart
+--   UNION ALL SELECT 'cart_item', COUNT(*) FROM cart_item
+--   UNION ALL SELECT 'coupons', COUNT(*) FROM coupons;
 -- =====================================================================

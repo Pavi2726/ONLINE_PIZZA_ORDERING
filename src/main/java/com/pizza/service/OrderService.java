@@ -4,15 +4,12 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.time.Duration;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.pizza.dto.EditOrderDTO;
-import com.pizza.dto.EditOrderItemDTO;
 import com.pizza.dto.OrderDTO;
 import com.pizza.entity.Cart;
 import com.pizza.entity.CartItem;
@@ -336,36 +333,6 @@ validateEditWindow(order);
 
     // Save changes
     orderRepository.save(order);
-}
-public EditOrderDTO getEditOrder(Long orderId, Long customerId) {
-
-    Order order = findOrderById(orderId, customerId);
-
-    EditOrderDTO dto = new EditOrderDTO();
-
-    dto.setOrderId(order.getId());
-    dto.setDeliveryAddress(order.getDeliveryAddress());
-    dto.setPhone(order.getPhone());
-    dto.setCouponCode(order.getCouponCode());
-
-    List<EditOrderItemDTO> items = new ArrayList<>();
-
-    for (OrderItem item : order.getOrderItems()) {
-
-        EditOrderItemDTO itemDTO = new EditOrderItemDTO();
-
-        itemDTO.setOrderItemId(item.getId());
-        itemDTO.setPizzaId(item.getPizza().getId());
-        itemDTO.setPizzaName(item.getPizza().getName());
-        itemDTO.setQuantity(item.getQuantity());
-        itemDTO.setPrice(item.getPrice());
-
-        items.add(itemDTO);
-    }
-
-    dto.setItems(items);
-
-    return dto;
 }
 
 @Transactional

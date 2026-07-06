@@ -3,6 +3,7 @@ package com.pizza.service;
 import com.pizza.entity.Cart;
 import com.pizza.entity.CartItem;
 import com.pizza.entity.Pizza;
+import com.pizza.exception.ResourceNotFoundException;
 import com.pizza.repository.CartItemRepository;
 import com.pizza.repository.CartRepository;
 import com.pizza.repository.PizzaRepository;
@@ -17,6 +18,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -26,12 +28,11 @@ import static org.mockito.Mockito.when;
 /**
  * Pure Mockito unit tests for {@link CartService}.
  *
- * <p>Includes characterization tests for a known, confirmed authorization
- * gap: {@code removeItem}/{@code increaseQuantity}/{@code decreaseQuantity}
- * take only a raw {@code cartItemId} - there is no customer/username
- * parameter anywhere in their signature or body for the service (or a unit
- * test) to check ownership against. These tests document that gap; they do
- * not add ownership checks, which is out of scope for this task.</p>
+ * <p>Bug #2 fix: {@code removeItem}/{@code increaseQuantity}/{@code
+ * decreaseQuantity} now take a {@code username} parameter and scope the
+ * lookup via {@code CartItemRepository.findByIdAndCart_Username(...)}, so a
+ * {@code cartItemId} that doesn't belong to the caller throws {@link
+ * ResourceNotFoundException} instead of being silently mutated.</p>
  */
 @ExtendWith(MockitoExtension.class)
 class CartServiceTest {
@@ -101,9 +102,9 @@ class CartServiceTest {
         Cart cart = TestDataFactory.cart("jane@example.com");
         Pizza pizza = TestDataFactory.pizza();
         CartItem item = TestDataFactory.cartItem(cart, pizza, 1);
-        when(cartItemRepository.findById(11L)).thenReturn(Optional.of(item));
+        when(cartItemRepository.findByIdAndCart_Username(11L, "jane@example.com")).thenReturn(Optional.of(item));
 
-        cartService.decreaseQuantity(11L);
+        cartService.decreaseQuantity(11L, "jane@example.com");
 
         verify(cartItemRepository).delete(item);
         verify(cartItemRepository, never()).save(any(CartItem.class));
@@ -114,62 +115,117 @@ class CartServiceTest {
         Cart cart = TestDataFactory.cart("jane@example.com");
         Pizza pizza = TestDataFactory.pizza();
         CartItem item = TestDataFactory.cartItem(cart, pizza, 3);
-        when(cartItemRepository.findById(12L)).thenReturn(Optional.of(item));
+        when(cartItemRepository.findByIdAndCart_Username(12L, "jane@example.com")).thenReturn(Optional.of(item));
 
-        cartService.decreaseQuantity(12L);
+        cartService.decreaseQuantity(12L, "jane@example.com");
 
         assertThat(item.getQuantity()).isEqualTo(2);
         verify(cartItemRepository).save(item);
         verify(cartItemRepository, never()).delete(any(CartItem.class));
     }
 
-    // ---------------------------------------------------------------- characterization: missing ownership check
+    // ---------------------------------------------------------------- Bug #2: ownership scoping
 
     @Test
-    void mutationMethods_haveNoCustomerOrUsernameParameter() throws NoSuchMethodException {
-        // These are the only mutators for a single cart line, and each takes
-        // exactly one argument: the raw cartItemId. There is no
-        // customer/username parameter for the method (or a caller) to check
-        // ownership against. This reflects the current, confirmed gap in the
-        // method signatures themselves - it is not fixed by this test.
-        Method removeItem = CartService.class.getMethod("removeItem", Long.class);
-        Method increaseQuantity = CartService.class.getMethod("increaseQuantity", Long.class);
-        Method decreaseQuantity = CartService.class.getMethod("decreaseQuantity", Long.class);
+    void mutationMethods_haveUsernameParameter_forOwnershipScoping() throws NoSuchMethodException {
+        // Fixed signatures: each mutator now also takes the caller's
+        // username, which is threaded down into a Cart-scoped repository
+        // lookup so an id belonging to a different customer's cart can be
+        // rejected instead of silently acted on.
+        Method removeItem = CartService.class.getMethod("removeItem", Long.class, String.class);
+        Method increaseQuantity = CartService.class.getMethod("increaseQuantity", Long.class, String.class);
+        Method decreaseQuantity = CartService.class.getMethod("decreaseQuantity", Long.class, String.class);
 
-        assertThat(removeItem.getParameterTypes()).containsExactly(Long.class);
-        assertThat(increaseQuantity.getParameterTypes()).containsExactly(Long.class);
-        assertThat(decreaseQuantity.getParameterTypes()).containsExactly(Long.class);
+        assertThat(removeItem.getParameterTypes()).containsExactly(Long.class, String.class);
+        assertThat(increaseQuantity.getParameterTypes()).containsExactly(Long.class, String.class);
+        assertThat(decreaseQuantity.getParameterTypes()).containsExactly(Long.class, String.class);
     }
 
     @Test
-    void removeItem_succeedsForAnyCartItem_regardlessOfWhichCustomerOwnsIt() {
-        // "otherCustomersCart" stands in for a cart that does not belong to
-        // whichever caller invokes removeItem. Because removeItem(Long) has
-        // no parameter carrying the caller's identity, there is nothing here
-        // (or in the real method) to check that cartItemId 21 actually
-        // belongs to the caller - it just acts on it.
-        Cart otherCustomersCart = TestDataFactory.cart("victim@example.com");
-        Pizza pizza = TestDataFactory.pizza();
-        CartItem item = TestDataFactory.cartItem(otherCustomersCart, pizza, 1);
-        otherCustomersCart.getCartItems().add(item);
-        when(cartItemRepository.findById(21L)).thenReturn(Optional.of(item));
+    void removeItem_throwsResourceNotFoundException_whenCartItemBelongsToDifferentCustomer() {
+        // "attacker@example.com" is not the username of the cart that owns
+        // cartItemId 21 - the scoped repository lookup returns empty, so the
+        // service must reject the request instead of acting on it.
+        when(cartItemRepository.findByIdAndCart_Username(21L, "attacker@example.com"))
+                .thenReturn(Optional.empty());
 
-        cartService.removeItem(21L);
+        assertThrows(ResourceNotFoundException.class,
+                () -> cartService.removeItem(21L, "attacker@example.com"));
 
-        assertThat(otherCustomersCart.getCartItems()).doesNotContain(item);
-        verify(cartRepository).save(otherCustomersCart);
+        verify(cartRepository, never()).save(any(Cart.class));
     }
 
     @Test
-    void increaseQuantity_succeedsForAnyCartItem_regardlessOfWhichCustomerOwnsIt() {
-        Cart otherCustomersCart = TestDataFactory.cart("victim@example.com");
-        Pizza pizza = TestDataFactory.pizza();
-        CartItem item = TestDataFactory.cartItem(otherCustomersCart, pizza, 1);
-        when(cartItemRepository.findById(22L)).thenReturn(Optional.of(item));
+    void increaseQuantity_throwsResourceNotFoundException_whenCartItemBelongsToDifferentCustomer() {
+        when(cartItemRepository.findByIdAndCart_Username(22L, "attacker@example.com"))
+                .thenReturn(Optional.empty());
 
-        cartService.increaseQuantity(22L);
+        assertThrows(ResourceNotFoundException.class,
+                () -> cartService.increaseQuantity(22L, "attacker@example.com"));
+
+        verify(cartItemRepository, never()).save(any(CartItem.class));
+    }
+
+    @Test
+    void removeItem_succeedsForOwnCartItem() {
+        Cart cart = TestDataFactory.cart("jane@example.com");
+        Pizza pizza = TestDataFactory.pizza();
+        CartItem item = TestDataFactory.cartItem(cart, pizza, 1);
+        cart.getCartItems().add(item);
+        when(cartItemRepository.findByIdAndCart_Username(21L, "jane@example.com")).thenReturn(Optional.of(item));
+
+        cartService.removeItem(21L, "jane@example.com");
+
+        assertThat(cart.getCartItems()).doesNotContain(item);
+        verify(cartRepository).save(cart);
+    }
+
+    @Test
+    void increaseQuantity_succeedsForOwnCartItem() {
+        Cart cart = TestDataFactory.cart("jane@example.com");
+        Pizza pizza = TestDataFactory.pizza();
+        CartItem item = TestDataFactory.cartItem(cart, pizza, 1);
+        when(cartItemRepository.findByIdAndCart_Username(22L, "jane@example.com")).thenReturn(Optional.of(item));
+
+        cartService.increaseQuantity(22L, "jane@example.com");
 
         assertThat(item.getQuantity()).isEqualTo(2);
         verify(cartItemRepository).save(item);
+    }
+
+    // ---------------------------------------------------------------- Bug #8: server-side quantity cap
+
+    @Test
+    void addPizzaToCart_throwsIllegalArgumentException_whenIncrementWouldExceedMaxQuantity() {
+        Cart cart = TestDataFactory.cart("jane@example.com");
+        Pizza pizza = TestDataFactory.pizza();
+        pizza.setId(5L);
+        CartItem existingItem = TestDataFactory.cartItem(cart, pizza, 50);
+
+        when(cartRepository.findByUsername("jane@example.com")).thenReturn(Optional.of(cart));
+        when(pizzaRepository.findById(5L)).thenReturn(Optional.of(pizza));
+        when(cartItemRepository.findByCartAndPizza(cart, pizza)).thenReturn(Optional.of(existingItem));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> cartService.addPizzaToCart("jane@example.com", 5L));
+
+        assertThat(ex.getMessage()).isEqualTo("Maximum quantity per item is 50.");
+        assertThat(existingItem.getQuantity()).isEqualTo(50);
+        verify(cartItemRepository, never()).save(any(CartItem.class));
+    }
+
+    @Test
+    void increaseQuantity_throwsIllegalArgumentException_atCap() {
+        Cart cart = TestDataFactory.cart("jane@example.com");
+        Pizza pizza = TestDataFactory.pizza();
+        CartItem item = TestDataFactory.cartItem(cart, pizza, 50);
+        when(cartItemRepository.findByIdAndCart_Username(30L, "jane@example.com")).thenReturn(Optional.of(item));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> cartService.increaseQuantity(30L, "jane@example.com"));
+
+        assertThat(ex.getMessage()).isEqualTo("Maximum quantity per item is 50.");
+        assertThat(item.getQuantity()).isEqualTo(50);
+        verify(cartItemRepository, never()).save(any(CartItem.class));
     }
 }

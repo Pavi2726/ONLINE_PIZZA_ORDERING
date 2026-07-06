@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Pizza Ordering System — Sriya Module",
-    "description": "Route reference for the server-rendered Thymeleaf application (US-001 to US-007). Most endpoints return HTML pages, not JSON. Use a browser or Postman with 'Follow redirects' enabled.",
+    "description": "Route reference for the server-rendered Thymeleaf application (US-001 to US-018: cart-based checkout, coupons, order history/edit/cancel, and admin coupon/order/customer management). Most endpoints return HTML pages, not JSON. Use a browser or Postman with 'Follow redirects' enabled.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -20,10 +20,30 @@
       ]
     },
     {
-      "name": "Customer — Authenticated (session cookie required)",
+      "name": "Customer — Cart (session cookie required)",
       "item": [
-        { "name": "Order Form", "request": { "method": "GET", "url": "{{baseUrl}}/orders/new?pizzaId=1" } },
-        { "name": "Order Success", "request": { "method": "GET", "url": "{{baseUrl}}/orders/success/ORD-20260625-1234" } }
+        { "name": "View Cart", "request": { "method": "GET", "url": "{{baseUrl}}/cart" } },
+        { "name": "Add Pizza to Cart", "request": { "method": "POST", "url": "{{baseUrl}}/cart/add?pizzaId=1" } },
+        { "name": "Increase Cart Item Quantity", "request": { "method": "POST", "url": "{{baseUrl}}/increase/1" } },
+        { "name": "Decrease Cart Item Quantity", "request": { "method": "POST", "url": "{{baseUrl}}/decrease/1" } },
+        { "name": "Remove Cart Item", "request": { "method": "POST", "url": "{{baseUrl}}/cart/remove?cartItemId=1" } },
+        { "name": "Apply Coupon", "request": { "method": "POST", "url": "{{baseUrl}}/cart/apply-coupon?couponCode=SAVE10" } }
+      ]
+    },
+    {
+      "name": "Customer — Checkout & Orders (session cookie required)",
+      "item": [
+        { "name": "Checkout Page", "request": { "method": "GET", "url": "{{baseUrl}}/orders/checkout" } },
+        { "name": "Place Order (from cart)", "request": { "method": "POST", "url": "{{baseUrl}}/orders/place" } },
+        { "name": "Order Success", "request": { "method": "GET", "url": "{{baseUrl}}/orders/success/ORD-20260625-1234" } },
+        { "name": "Order History", "request": { "method": "GET", "url": "{{baseUrl}}/orders/history" } },
+        { "name": "Cancel Order", "request": { "method": "POST", "url": "{{baseUrl}}/orders/cancel/1" } },
+        { "name": "Edit Order Page (5-minute window)", "request": { "method": "GET", "url": "{{baseUrl}}/orders/edit/1" } },
+        { "name": "Update Order Details", "request": { "method": "POST", "url": "{{baseUrl}}/orders/edit/1?deliveryAddress=123 Main St&phone=5551234567" } },
+        { "name": "Edit Order — Increase Item Quantity", "request": { "method": "POST", "url": "{{baseUrl}}/orders/edit/1/increase/1" } },
+        { "name": "Edit Order — Decrease Item Quantity", "request": { "method": "POST", "url": "{{baseUrl}}/orders/edit/1/decrease/1" } },
+        { "name": "Edit Order — Remove Item", "request": { "method": "POST", "url": "{{baseUrl}}/orders/edit/1/remove/1" } },
+        { "name": "Edit Order — Add Pizza", "request": { "method": "POST", "url": "{{baseUrl}}/orders/edit/1/add-pizza?pizzaId=1&quantity=1" } }
       ]
     },
     {
@@ -39,6 +59,19 @@
         { "name": "Manage Pizzas", "request": { "method": "GET", "url": "{{baseUrl}}/admin/pizzas" } },
         { "name": "Add Pizza (GET form)", "request": { "method": "GET", "url": "{{baseUrl}}/admin/pizzas/add" } },
         { "name": "Edit Pizza (GET form)", "request": { "method": "GET", "url": "{{baseUrl}}/admin/pizzas/edit/1" } },
+        { "name": "Delete Pizza", "request": { "method": "POST", "url": "{{baseUrl}}/admin/pizzas/delete/1" } },
+        { "name": "Manage Coupons", "request": { "method": "GET", "url": "{{baseUrl}}/admin/coupons" } },
+        { "name": "Add Coupon (GET form)", "request": { "method": "GET", "url": "{{baseUrl}}/admin/coupons/add" } },
+        { "name": "Create Coupon", "request": { "method": "POST", "url": "{{baseUrl}}/admin/coupons/add?couponCode=SAVE10&discountPercentage=10&active=true" } },
+        { "name": "Edit Coupon (GET form)", "request": { "method": "GET", "url": "{{baseUrl}}/admin/coupons/edit/1" } },
+        { "name": "Update Coupon", "request": { "method": "POST", "url": "{{baseUrl}}/admin/coupons/update/1?couponCode=SAVE10&discountPercentage=15&active=true" } },
+        { "name": "Delete Coupon", "request": { "method": "POST", "url": "{{baseUrl}}/admin/coupons/delete/1" } },
+        { "name": "Manage Customers", "request": { "method": "GET", "url": "{{baseUrl}}/admin/customers" } },
+        { "name": "Edit Customer (GET form)", "request": { "method": "GET", "url": "{{baseUrl}}/admin/customers/edit/1" } },
+        { "name": "Update Customer", "request": { "method": "POST", "url": "{{baseUrl}}/admin/customers/update/1" } },
+        { "name": "Manage Orders", "request": { "method": "GET", "url": "{{baseUrl}}/admin/orders" } },
+        { "name": "Order Detail", "request": { "method": "GET", "url": "{{baseUrl}}/admin/orders/1" } },
+        { "name": "Update Order Status", "request": { "method": "POST", "url": "{{baseUrl}}/admin/orders/1/status?status=PROCESSING" } },
         { "name": "Admin Logout", "request": { "method": "GET", "url": "{{baseUrl}}/admin/logout" } }
       ]
     },
@@ -51,7 +84,11 @@
         },
         {
           "name": "Order route without session (expect redirect to /login)",
-          "request": { "method": "GET", "url": "{{baseUrl}}/orders/new?pizzaId=1" }
+          "request": { "method": "GET", "url": "{{baseUrl}}/orders/history" }
+        },
+        {
+          "name": "Cart route without session (expect redirect to /login)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/cart" }
         }
       ]
     }

@@ -11,6 +11,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.pizza.dto.CouponDTO;
 import com.pizza.entity.Coupon;
+import com.pizza.exception.ResourceNotFoundException;
 import com.pizza.repository.CouponRepository;
 import com.pizza.testsupport.TestDataFactory;
 
@@ -25,11 +26,14 @@ import static org.mockito.Mockito.when;
 /**
  * Pure Mockito unit tests for {@link CouponService}.
  *
- * <p>Note on exception types (confirmed from source): {@code createCoupon}'s
- * duplicate-code guard throws {@link IllegalArgumentException}, while
- * {@code getCouponById}/{@code updateCoupon}/{@code validateCoupon}'s
- * not-found/invalid-code guards throw a raw {@link RuntimeException} - the
- * class does not use {@code ResourceNotFoundException} anywhere.</p>
+ * <p>Bug #5 fix: {@code getCouponById}/{@code updateCoupon}'s not-found
+ * guards now throw {@link ResourceNotFoundException} (matching {@code
+ * PizzaService}/{@code OrderService}'s convention), and {@code
+ * validateCoupon}'s invalid-code/inactive-code guards now throw {@link
+ * IllegalArgumentException}, matching {@code createCoupon}'s existing
+ * duplicate-code guard and {@code OrderService.placeOrder}'s identical
+ * sibling checks. Bug #9 fix: {@code updateCoupon} now rejects a code
+ * collision with a different coupon before saving.</p>
  */
 @ExtendWith(MockitoExtension.class)
 class CouponServiceTest {
@@ -90,12 +94,12 @@ class CouponServiceTest {
     }
 
     @Test
-    void getCouponById_notFound_throwsRuntimeException() {
+    void getCouponById_notFound_throwsResourceNotFoundException() {
         when(couponRepository.findById(99L)).thenReturn(Optional.empty());
 
-        RuntimeException ex = assertThrows(RuntimeException.class, () -> couponService.getCouponById(99L));
+        ResourceNotFoundException ex = assertThrows(ResourceNotFoundException.class,
+                () -> couponService.getCouponById(99L));
 
-        assertThat(ex.getClass()).isEqualTo(RuntimeException.class);
         assertThat(ex.getMessage()).isEqualTo("Coupon not found");
     }
 
@@ -106,6 +110,7 @@ class CouponServiceTest {
         Coupon existing = TestDataFactory.coupon(10, true);
         existing.setId(3L);
         when(couponRepository.findById(3L)).thenReturn(Optional.of(existing));
+        when(couponRepository.existsByCouponCodeAndIdNot("NEWCODE", 3L)).thenReturn(false);
         when(couponRepository.save(any(Coupon.class))).thenAnswer(inv -> inv.getArgument(0));
 
         Coupon result = couponService.updateCoupon(3L, dto(" newcode ", 25, false));
@@ -117,10 +122,24 @@ class CouponServiceTest {
     }
 
     @Test
-    void updateCoupon_notFound_throwsRuntimeException() {
+    void updateCoupon_notFound_throwsResourceNotFoundException() {
         when(couponRepository.findById(42L)).thenReturn(Optional.empty());
 
-        assertThrows(RuntimeException.class, () -> couponService.updateCoupon(42L, dto("ANY", 10, true)));
+        assertThrows(ResourceNotFoundException.class, () -> couponService.updateCoupon(42L, dto("ANY", 10, true)));
+        verify(couponRepository, never()).save(any());
+    }
+
+    @Test
+    void updateCoupon_duplicateCodeBelongingToDifferentCoupon_throwsIllegalArgumentException() {
+        Coupon existing = TestDataFactory.coupon(10, true);
+        existing.setId(3L);
+        when(couponRepository.findById(3L)).thenReturn(Optional.of(existing));
+        when(couponRepository.existsByCouponCodeAndIdNot("TAKEN", 3L)).thenReturn(true);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> couponService.updateCoupon(3L, dto("taken", 10, true)));
+
+        assertThat(ex.getMessage()).isEqualTo("Coupon code already exists.");
         verify(couponRepository, never()).save(any());
     }
 
@@ -138,32 +157,33 @@ class CouponServiceTest {
     }
 
     @Test
-    void deleteCoupon_notFound_throwsRuntimeExceptionAndDoesNotDelete() {
+    void deleteCoupon_notFound_throwsResourceNotFoundExceptionAndDoesNotDelete() {
         when(couponRepository.findById(404L)).thenReturn(Optional.empty());
 
-        assertThrows(RuntimeException.class, () -> couponService.deleteCoupon(404L));
+        assertThrows(ResourceNotFoundException.class, () -> couponService.deleteCoupon(404L));
         verify(couponRepository, never()).delete(any());
     }
 
     // ---------------------------------------------------------------- validateCoupon
 
     @Test
-    void validateCoupon_unknownCode_throwsRuntimeException() {
+    void validateCoupon_unknownCode_throwsIllegalArgumentException() {
         when(couponRepository.findByCouponCode("MISSING")).thenReturn(Optional.empty());
 
-        RuntimeException ex = assertThrows(RuntimeException.class, () -> couponService.validateCoupon("missing"));
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> couponService.validateCoupon("missing"));
 
-        assertThat(ex.getClass()).isEqualTo(RuntimeException.class);
         assertThat(ex.getMessage()).isEqualTo("Invalid coupon code.");
     }
 
     @Test
-    void validateCoupon_inactiveCode_throwsRuntimeException() {
+    void validateCoupon_inactiveCode_throwsIllegalArgumentException() {
         Coupon inactive = TestDataFactory.coupon(15, false);
         inactive.setCouponCode("STALE");
         when(couponRepository.findByCouponCode("STALE")).thenReturn(Optional.of(inactive));
 
-        RuntimeException ex = assertThrows(RuntimeException.class, () -> couponService.validateCoupon("stale"));
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> couponService.validateCoupon("stale"));
 
         assertThat(ex.getMessage()).isEqualTo("Coupon is inactive.");
     }

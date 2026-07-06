@@ -13,8 +13,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -31,26 +29,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * {@link com.pizza.service.CouponService} and the real {@link CouponRepository}
  * backed by H2.
  *
- * <p><b>Characterization (the main point of this class):</b> {@code
- * CouponService.createCoupon} explicitly checks {@code existsByCouponCode}
- * before saving and throws a clean {@code IllegalArgumentException} - but that
- * exception is <em>never caught</em> by {@code AdminCouponController.addCoupon}
- * (no try/catch there), so it falls through to {@code GlobalExceptionHandler}'s
- * generic {@code IllegalArgumentException} handler and renders as an HTTP 400
- * {@code error} page.
- *
- * <p>{@code CouponService.updateCoupon} has <em>no such check at all</em> - it
- * blindly sets the new code and saves, relying entirely on the database's
- * unique constraint on {@code coupons.coupon_code}. {@code
- * AdminCouponController.updateCoupon} <em>does</em> wrap that call in a
- * try/catch, so in real (single-transaction-per-request) production use the
- * resulting {@code DataIntegrityViolationException} - thrown synchronously
- * when the surrounding {@code @Transactional} service method commits - is
- * caught there and redirected back to the list with a leaky, unfriendly
- * {@code errorMessage} flash attribute (the raw SQL exception text), not a
- * clean message and not a 500. See {@link #updateCoupon_duplicateCode_hasNoAppLevelCheck_isCaughtButLeaksRawSqlErrorMessage_andLeavesRowUnchanged()}
- * for why that one test method deliberately opts out of this class's inherited
- * transaction wrapping to observe that real behaviour.
+ * <p><b>Bug #9 fix (the main point of this class):</b> {@code
+ * CouponService.updateCoupon} now checks {@code existsByCouponCodeAndIdNot}
+ * before saving, mirroring {@code createCoupon}'s existing duplicate-code
+ * guard - so renaming one coupon to another real coupon's code now throws a
+ * clean {@code IllegalArgumentException} at the app level, before any SQL is
+ * attempted, instead of relying on (and leaking) the database's raw unique
+ * constraint violation. {@code AdminCouponController.updateCoupon}'s existing
+ * try/catch surfaces this as a friendly flash message, same as {@code
+ * createCoupon}'s equivalent case above.
  */
 class AdminCouponManagementIntegrationTest extends AbstractIntegrationTest {
 
@@ -173,71 +160,36 @@ class AdminCouponManagementIntegrationTest extends AbstractIntegrationTest {
     }
 
     /**
-     * The characterization test. {@code CouponService.updateCoupon} performs
-     * no duplicate-code check of its own (unlike {@code createCoupon}), so
-     * renaming one coupon to another real coupon's code relies purely on the
-     * database's unique constraint on {@code coupons.coupon_code}.
-     *
-     * <p>This method is deliberately annotated {@code @Transactional(propagation
-     * = NOT_SUPPORTED)}, opting this one test out of the class's inherited
-     * (from {@link AbstractIntegrationTest}) per-test rollback transaction.
-     * Verified empirically: when this test runs <em>inside</em> that inherited
-     * wrapping transaction (the default for every other test here), {@code
-     * CouponService.updateCoupon}'s own {@code @Transactional} merely joins the
-     * already-open test transaction instead of owning/committing one, so the
-     * broken UPDATE is never flushed to H2 during the request - the controller
-     * sees no exception at all and happily redirects with a false-positive
-     * "updated successfully" flash message. That is a real, interesting bug in
-     * its own right, but it is an artifact of this test harness's shared
-     * persistence context, not what a real single-request production call
-     * does. Suspending the test transaction here lets {@code updateCoupon}'s
-     * {@code @Transactional} be the genuine, request-scoped transaction
-     * boundary - matching production - so its commit-time flush (and the
-     * resulting {@code DataIntegrityViolationException}) happens synchronously
-     * inside the {@code couponService.updateCoupon(...)} call, exactly as it
-     * would for a real admin request. That exception is then caught by {@code
-     * AdminCouponController.updateCoupon}'s try/catch, which is confirmed below.
-     *
-     * <p>Because this method does not run in a rolled-back transaction, it
-     * cleans up everything it writes in a {@code finally} block.
+     * Bug #9 fix proof. {@code CouponService.updateCoupon} now checks
+     * {@code existsByCouponCodeAndIdNot} before saving, so renaming one
+     * coupon to another real coupon's code is rejected at the app level -
+     * before any UPDATE is attempted - with the same clean message {@code
+     * createCoupon} already produces for its equivalent case.
      */
     @Test
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    void updateCoupon_duplicateCode_hasNoAppLevelCheck_isCaughtButLeaksRawSqlErrorMessage_andLeavesRowUnchanged() throws Exception {
+    void updateCoupon_duplicateCode_isCaughtWithFriendlyMessage_andLeavesRowUnchanged() throws Exception {
         Coupon coupon1 = couponRepository.saveAndFlush(TestDataFactory.coupon(10, true));
         Coupon coupon2 = couponRepository.saveAndFlush(TestDataFactory.coupon(20, true));
         Long coupon1Id = coupon1.getId();
         String coupon1OriginalCode = coupon1.getCouponCode();
         String coupon2Code = coupon2.getCouponCode();
 
-        try {
-            mockMvc.perform(post("/admin/coupons/update/" + coupon1Id)
-                            .param("couponCode", coupon2Code)
-                            .param("discountPercentage", "99")
-                            .param("active", "true")
-                            .session(adminSession()))
-                    .andExpect(status().is3xxRedirection())
-                    .andExpect(redirectedUrl("/admin/coupons"))
-                    .andExpect(flash().attributeExists("errorMessage"))
-                    .andExpect(flash().attribute("errorMessage",
-                            Matchers.not(Matchers.containsString("updated successfully"))))
-                    // Unlike createCoupon's clean "Coupon code already exists."
-                    // message, updateCoupon has no such check, so the flashed
-                    // text is the raw, unfriendly constraint-violation message
-                    // bubbling up from H2/Hibernate.
-                    .andExpect(flash().attribute("errorMessage",
-                            Matchers.containsStringIgnoringCase("constraint")));
+        mockMvc.perform(post("/admin/coupons/update/" + coupon1Id)
+                        .param("couponCode", coupon2Code)
+                        .param("discountPercentage", "99")
+                        .param("active", "true")
+                        .session(adminSession()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/coupons"))
+                .andExpect(flash().attribute("errorMessage", "Coupon code already exists."));
 
-            // The real, H2-persisted row for coupon1 is provably untouched -
-            // the failed commit rolled the whole update back.
-            Optional<Coupon> reloaded = couponRepository.findById(coupon1Id);
-            assertThat(reloaded).isPresent();
-            assertThat(reloaded.get().getCouponCode()).isEqualTo(coupon1OriginalCode);
-            assertThat(reloaded.get().getDiscountPercentage()).isEqualTo(10);
-        } finally {
-            couponRepository.deleteById(coupon1Id);
-            couponRepository.deleteById(coupon2.getId());
-        }
+        // The real, H2-persisted row for coupon1 is provably untouched.
+        entityManager.flush();
+        entityManager.clear();
+        Optional<Coupon> reloaded = couponRepository.findById(coupon1Id);
+        assertThat(reloaded).isPresent();
+        assertThat(reloaded.get().getCouponCode()).isEqualTo(coupon1OriginalCode);
+        assertThat(reloaded.get().getDiscountPercentage()).isEqualTo(10);
     }
 
     // ------------------------------------------------------------------ delete

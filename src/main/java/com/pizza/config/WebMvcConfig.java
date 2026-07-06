@@ -9,7 +9,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  * Registers authentication interceptors:
  * <ul>
  *   <li>{@link AdminAuthInterceptor} — protects {@code /admin/**}</li>
- *   <li>{@link CustomerAuthInterceptor} — protects {@code /orders/**}</li>
+ *   <li>{@link CustomerAuthInterceptor} — protects {@code /orders/**},
+ *       {@code /cart/**}, {@code /increase/**} and {@code /decrease/**}</li>
  * </ul>
  */
 @Configuration
@@ -26,6 +27,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .excludePathPatterns("/admin/login", "/admin/logout");
 
         registry.addInterceptor(customerAuthInterceptor)
-                .addPathPatterns("/orders/**");
+                .addPathPatterns("/orders/**", "/cart/**", "/increase/**", "/decrease/**");
     }
 }

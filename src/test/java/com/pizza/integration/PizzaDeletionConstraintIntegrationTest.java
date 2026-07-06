@@ -10,6 +10,7 @@ import com.pizza.repository.OrderRepository;
 import com.pizza.repository.PizzaRepository;
 import com.pizza.testsupport.TestDataFactory;
 import com.pizza.util.SessionUtil;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mock.web.MockHttpSession;
@@ -18,48 +19,40 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 /**
- * Full-stack characterization of the Cloudinary-delete-ordering bug against a
- * REAL H2 foreign-key constraint (task-7-brief.md's "Correction from Task
- * 6"). {@code PizzaServiceTest} (Task 2, unit-level) already locked in the
- * call ORDER of {@link com.pizza.service.PizzaService#delete(Long)} -
- * {@code cloudinaryService.delete()} before {@code pizzaRepository.delete()}
- * - with a fully mocked repository that never actually fails. This class
- * proves the real-world consequence of that ordering against a genuine
- * {@code order_items} row referencing the pizza in H2: the Cloudinary image
- * is unrecoverably gone (the mock was invoked - in production this would be
- * a real, non-reversible network call), but the pizza row survives because
- * the database rejects the delete and the whole operation rolls back.
+ * Full-stack proof that the Cloudinary-delete-ordering bug (Bug #3) is fixed,
+ * against a REAL H2 foreign-key constraint. {@code PizzaServiceTest}
+ * (unit-level) already locks in the fixed call order - {@code
+ * pizzaRepository.delete()} + {@code flush()} before {@code
+ * cloudinaryService.delete()} - with a mocked repository. This class proves
+ * the real-world consequence against a genuine {@code order_items} row
+ * referencing the pizza in H2: the DB delete is rejected by the FK
+ * constraint, the Cloudinary image is never touched, and the pizza row
+ * survives completely intact.
  *
- * <p><b>Why {@code Propagation.NOT_SUPPORTED}:</b> verified empirically
- * against this exact scenario (mirroring {@code
- * AdminCouponManagementIntegrationTest}'s duplicate-code characterization
- * test, which hit the identical issue). Left under {@link
- * AbstractIntegrationTest}'s inherited per-test rollback transaction, {@code
- * PizzaService.delete()}'s own {@code @Transactional} merely joins the
- * already-open test transaction instead of owning/committing one, so
- * Hibernate never flushes the pending {@code DELETE} statement to H2 during
- * the request - {@code AdminPizzaController.delete()} sees no exception at
- * all and happily redirects with a false-positive "deleted successfully"
- * flash, and a subsequent {@code pizzaRepository.findById} then reports the
- * pizza gone purely because JPA hides not-yet-flushed removed entities from
- * their own persistence context - not because any row was ever removed from
- * H2. Opting this test method out of that wrapping transaction lets {@code
- * PizzaService.delete()}'s {@code @Transactional} be the genuine,
+ * <p><b>Why {@code Propagation.NOT_SUPPORTED}:</b> verified empirically -
+ * the same reasoning as the original (pre-fix) version of this test still
+ * applies. Left under {@link AbstractIntegrationTest}'s inherited per-test
+ * rollback transaction, {@code PizzaService.delete()}'s own {@code
+ * @Transactional} merely joins the already-open test transaction, and once
+ * {@code pizzaRepository.flush()} fails, Hibernate's persistence context
+ * keeps treating the pizza as removed (it was already marked for removal
+ * before the rejected flush) for the rest of that shared persistence
+ * context - so a subsequent {@code pizzaRepository.findById} on the SAME
+ * joined transaction reports the pizza gone even though the real H2 row was
+ * never actually deleted (the DELETE statement itself was rejected by the FK
+ * constraint). Opting this test method out of that wrapping transaction lets
+ * {@code PizzaService.delete()}'s {@code @Transactional} be the genuine,
  * request-scoped transaction boundary - matching real production traffic -
- * so its commit-time flush (and the resulting real {@code
- * DataIntegrityViolationException}) happens synchronously inside {@code
- * pizzaService.delete(id)}, exactly as it would for a real admin request.
- * That exception is uncaught by {@code AdminPizzaController.delete()} (no
- * try/catch there), so it reaches {@code GlobalExceptionHandler}'s generic
- * {@code DataAccessException} handler, which renders the friendly {@code
- * error} view at HTTP 500 - confirmed from source, not assumed.
+ * so the subsequent read-back in this test goes through a fresh persistence
+ * context and reflects genuine H2 state.
  *
  * <p>Because this test does not run inside a rolled-back transaction, it
  * cleans up everything it writes in a {@code finally} block.
@@ -78,6 +71,9 @@ class PizzaDeletionConstraintIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private OrderRepository orderRepository;
 
+    @Autowired
+    private EntityManager entityManager;
+
     private MockHttpSession adminSession() {
         MockHttpSession session = new MockHttpSession();
         session.setAttribute(SessionUtil.CURRENT_ADMIN, TestDataFactory.admin());
@@ -86,7 +82,7 @@ class PizzaDeletionConstraintIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    void delete_pizzaReferencedByRealOrderItem_failsAsDatabaseErrorPage_butCloudinaryImageIsAlreadyGone() throws Exception {
+    void delete_pizzaReferencedByRealOrderItem_redirectsWithFriendlyFlashError_andLeavesCloudinaryImageAndPizzaRowIntact() throws Exception {
         Customer customer = customerRepository.saveAndFlush(TestDataFactory.customer());
         Pizza pizza = pizzaRepository.saveAndFlush(TestDataFactory.pizza());
         Long pizzaId = pizza.getId();
@@ -102,23 +98,22 @@ class PizzaDeletionConstraintIntegrationTest extends AbstractIntegrationTest {
             // real PizzaService, real H2 foreign-key constraint on
             // order_items.pizza_id -> pizzas.id.
             mockMvc.perform(post("/admin/pizzas/delete/" + pizzaId).session(adminSession()))
-                    .andExpect(status().isInternalServerError())
-                    .andExpect(view().name("error"))
-                    .andExpect(model().attribute("message",
-                            "A database error occurred. Please try again later."));
+                    .andExpect(status().is3xxRedirection())
+                    .andExpect(redirectedUrl("/admin/pizzas"))
+                    .andExpect(flash().attribute("errorMessage",
+                            "This pizza cannot be deleted because it has already been ordered."));
 
-            // The image is already gone from Cloudinary - PizzaService.delete()
-            // calls cloudinaryService.delete() BEFORE the repository delete
-            // that then failed. In production this Cloudinary call is a real,
-            // irreversible network operation.
-            verify(cloudinaryService).delete(imagePublicId);
+            // The Cloudinary image is never touched, since the DB delete
+            // (and its forced flush) failed before PizzaService.delete()
+            // ever reaches the cloudinaryService.delete(...) call.
+            verify(cloudinaryService, never()).delete(imagePublicId);
 
-            // ...yet the pizza row survives in H2: the failed delete's own
-            // transaction rolled back, so the row is exactly as it was before
-            // the request. This is the bug: an orphaned catalogue row now
-            // pointing at an image that no longer exists anywhere.
+            // Force a fresh read from H2, bypassing any stale persistence-
+            // context state left over from the failed flush inside the
+            // request just performed.
+            entityManager.clear();
             Pizza survived = pizzaRepository.findById(pizzaId).orElseThrow(
-                    () -> new AssertionError("Expected the pizza row to survive the failed, rolled-back delete"));
+                    () -> new AssertionError("Expected the pizza row to survive the rejected delete"));
             assertThat(survived.getImagePublicId()).isEqualTo(imagePublicId);
         } finally {
             // Manual cleanup: this test opted out of the per-test rollback,

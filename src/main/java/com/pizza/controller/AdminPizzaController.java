@@ -108,8 +108,12 @@ public class AdminPizzaController {
     /** US-006: delete a pizza and its Cloudinary image. */
     @PostMapping("/delete/{id}")
     public String delete(@PathVariable Long id, RedirectAttributes redirectAttributes) {
-        pizzaService.delete(id);
-        redirectAttributes.addFlashAttribute("successMessage", "Pizza deleted successfully.");
+        try {
+            pizzaService.delete(id);
+            redirectAttributes.addFlashAttribute("successMessage", "Pizza deleted successfully.");
+        } catch (IllegalStateException e) {
+            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+        }
         return "redirect:/admin/pizzas";
     }
 }
