@@ -118,6 +118,43 @@ class OrderControllerTest {
                 .andExpect(content().string(containsString("30")));
     }
 
+    @Test
+    void viewOrderSuccess_withNonExistentOrder_errorPageLinksToCustomerHome() throws Exception {
+        // Counterpart to AdminOrderControllerTest's admin-dashboard-link
+        // assertion: with no admin session, error.html must keep pointing
+        // "Back to Home" at the customer home page, not an admin dashboard.
+        Customer customer = TestDataFactory.customer();
+        customer.setId(1L);
+        when(orderService.findByOrderNumberForCustomer("ORD-MISSING", 1L))
+                .thenThrow(new com.pizza.exception.ResourceNotFoundException("Order not found"));
+
+        mockMvc.perform(request(HttpMethod.GET, "/orders/success/ORD-MISSING")
+                        .session(customerSession(customer)))
+                .andExpect(status().isNotFound())
+                .andExpect(content().string(containsString("Back to Home")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("/admin/dashboard"))));
+    }
+
+    @Test
+    void viewOrderSuccess_withNonExistentOrder_errorPageStillShowsLoggedInCustomerNav() throws Exception {
+        // Bug: GlobalModelAdvice's currentCustomer/cartItemCount attributes
+        // (unlike currentAdmin, which was fixed) still don't propagate into
+        // views rendered from GlobalExceptionHandler's own @ExceptionHandler
+        // methods, so a logged-in customer hitting any error used to see the
+        // navbar's logged-out state (Login/Register) instead of Cart/Order
+        // History/their account dropdown.
+        Customer customer = TestDataFactory.customer();
+        customer.setId(1L);
+        when(orderService.findByOrderNumberForCustomer("ORD-MISSING", 1L))
+                .thenThrow(new com.pizza.exception.ResourceNotFoundException("Order not found"));
+
+        mockMvc.perform(request(HttpMethod.GET, "/orders/success/ORD-MISSING")
+                        .session(customerSession(customer)))
+                .andExpect(status().isNotFound())
+                .andExpect(content().string(containsString("Order History")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("bi-box-arrow-in-right"))));
+    }
+
     // ------------------------------------------------------------- history
 
     @Test
@@ -246,8 +283,8 @@ class OrderControllerTest {
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/cart"))
                 .andExpect(flash().attribute("successMessage",
-                        "1 item(s) added to your cart. Unavailable, skipped: Retired Special."
-                                + " Capped at maximum quantity: Margherita."));
+                        "1 item(s) added to your cart. 1 unavailable, skipped."
+                                + " 1 capped at maximum quantity."));
     }
 
     // ------------------------------------------------------- edit/** family

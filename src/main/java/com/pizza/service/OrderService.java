@@ -396,7 +396,20 @@ public void addPizzaToOrder(Long orderId,
  * available, and which pizzas had their added quantity clamped at the
  * per-item cart cap.
  */
-public record ReorderResult(int addedCount, List<String> skippedPizzaNames, List<String> cappedPizzaNames) {}
+public record ReorderResult(int addedCount, List<String> skippedPizzaNames, List<String> cappedPizzaNames) {
+
+    /** Concise counts-only summary for the flash message - never enumerates pizza names. */
+    public String summaryMessage() {
+        StringBuilder message = new StringBuilder(addedCount + " item(s) added to your cart.");
+        if (!skippedPizzaNames.isEmpty()) {
+            message.append(" ").append(skippedPizzaNames.size()).append(" unavailable, skipped.");
+        }
+        if (!cappedPizzaNames.isEmpty()) {
+            message.append(" ").append(cappedPizzaNames.size()).append(" capped at maximum quantity.");
+        }
+        return message.toString();
+    }
+}
 
 /**
  * Reorders a past order: every still-available pizza is appended to the

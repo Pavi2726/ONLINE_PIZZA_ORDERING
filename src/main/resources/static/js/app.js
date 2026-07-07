@@ -33,15 +33,30 @@
 
     // ---- Prevent duplicate form submissions ----
     document.querySelectorAll("form[method='post']").forEach(function (form) {
-        form.addEventListener("submit", function () {
-            const submitBtn = form.querySelector("button[type='submit']");
-            if (submitBtn && !submitBtn.disabled) {
-                submitBtn.disabled = true;
-                const spinner = submitBtn.querySelector(".spinner-border");
-                if (spinner) {
-                    spinner.classList.remove("d-none");
+        form.addEventListener("submit", function (event) {
+            // Deferred so this runs after every other submit listener on the
+            // form (e.g. a page's own client-side validation, which may still
+            // call preventDefault()) and after the browser has already
+            // captured the submitter's name/value for the request. Disabling
+            // the button synchronously here would (a) leave it disabled
+            // forever if a later listener cancels the submit, since nothing
+            // else re-enables it, and (b) for forms where several buttons
+            // share the submit but each carries its own name/value (e.g.
+            // admin order-status actions), drop that value from the POST
+            // entirely by disabling it before the browser reads it.
+            setTimeout(function () {
+                if (event.defaultPrevented) {
+                    return;
                 }
-            }
+                const submitBtn = form.querySelector("button[type='submit']");
+                if (submitBtn && !submitBtn.disabled) {
+                    submitBtn.disabled = true;
+                    const spinner = submitBtn.querySelector(".spinner-border");
+                    if (spinner) {
+                        spinner.classList.remove("d-none");
+                    }
+                }
+            }, 0);
         });
     });
 

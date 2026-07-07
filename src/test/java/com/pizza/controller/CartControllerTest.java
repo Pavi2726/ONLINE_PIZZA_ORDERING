@@ -235,4 +235,20 @@ class CartControllerTest {
 
         verify(couponService).validateCoupon("SAVE10");
     }
+
+    // ---------------------------------------------------- Bug: coupon removal
+
+    @Test
+    void removeCoupon_clearsAppliedCouponFromSession_andFlashesSuccessMessage() throws Exception {
+        Customer customer = TestDataFactory.customer();
+        MockHttpSession session = customerSession(customer);
+        session.setAttribute("appliedCoupon", TestDataFactory.coupon());
+
+        mockMvc.perform(post("/cart/remove-coupon").session(session))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/cart"))
+                .andExpect(flash().attribute("successMessage", "Coupon removed."));
+
+        org.assertj.core.api.Assertions.assertThat(session.getAttribute("appliedCoupon")).isNull();
+    }
 }

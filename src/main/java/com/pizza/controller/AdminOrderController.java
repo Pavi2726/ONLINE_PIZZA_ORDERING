@@ -15,11 +15,15 @@ import com.pizza.entity.Order;
 import com.pizza.service.AdminOrderService;
 
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Controller
 @RequestMapping("/admin/orders")
 @RequiredArgsConstructor
 public class AdminOrderController {
+
+    private static final Logger log = LoggerFactory.getLogger(AdminOrderController.class);
 
     private final AdminOrderService adminOrderService;
 
@@ -57,8 +61,12 @@ public class AdminOrderController {
             redirectAttributes.addFlashAttribute(
                     "successMessage",
                     "Order \"" + order.getOrderNumber() + "\" is now " + order.getStatus() + ".");
-        } catch (Exception e) {
+        } catch (IllegalArgumentException | IllegalStateException e) {
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+        } catch (Exception e) {
+            log.error("Unexpected error updating order {} status", id, e);
+            redirectAttributes.addFlashAttribute("errorMessage",
+                    "Something went wrong updating the order status. Please try again.");
         }
 
         return "redirect:/admin/orders/" + id;
@@ -76,15 +84,16 @@ public class AdminOrderController {
                     adminOrderService.bulkUpdateStatus(orderIds, targetStatus);
 
             if (result.skippedOrderNumbers().isEmpty()) {
-                redirectAttributes.addFlashAttribute("successMessage",
-                        result.updatedCount() + " order(s) updated to " + targetStatus + ".");
+                redirectAttributes.addFlashAttribute("successMessage", result.summaryMessage(targetStatus));
             } else {
-                redirectAttributes.addFlashAttribute("warningMessage",
-                        result.updatedCount() + " order(s) updated to " + targetStatus
-                                + "; skipped (invalid transition): " + String.join(", ", result.skippedOrderNumbers()) + ".");
+                redirectAttributes.addFlashAttribute("warningMessage", result.summaryMessage(targetStatus));
             }
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+        } catch (Exception e) {
+            log.error("Unexpected error during bulk order status update", e);
+            redirectAttributes.addFlashAttribute("errorMessage",
+                    "Something went wrong updating order statuses. Please try again.");
         }
 
         return "redirect:/admin/orders";

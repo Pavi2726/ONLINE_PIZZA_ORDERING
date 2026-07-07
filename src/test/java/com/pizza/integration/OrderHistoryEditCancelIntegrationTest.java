@@ -239,7 +239,7 @@ class OrderHistoryEditCancelIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/cart"))
                 .andExpect(flash().attribute("successMessage",
-                        "0 item(s) added to your cart. Unavailable, skipped: Margherita."));
+                        "0 item(s) added to your cart. 1 unavailable, skipped."));
 
         entityManager.flush();
         entityManager.clear();

@@ -198,8 +198,7 @@ class AdminOrderManagementIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/admin/orders"))
                 .andExpect(flash().attribute("warningMessage",
-                        "2 order(s) updated to PROCESSING; skipped (invalid transition): "
-                                + ineligible.getOrderNumber() + "."));
+                        "Changed status of 2 order(s) successfully, couldn't change status of 1 order(s) (invalid transition)."));
 
         entityManager.flush();
         entityManager.clear();

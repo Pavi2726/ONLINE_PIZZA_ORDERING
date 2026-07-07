@@ -107,15 +107,8 @@ public boolean addPizzaToCartClamped(String username, Long pizzaId, int quantity
     return clamped;
 }
 
-@Transactional(readOnly = true)
 public Cart getCart(String username) {
-
-    return cartRepository.findByUsername(username)
-            .orElseGet(() -> {
-                Cart cart = new Cart();
-                cart.setUsername(username);
-                return cartRepository.save(cart);
-            });
+    return getOrCreateCart(username);
 }
 public void removeItem(Long cartItemId, String username) {
 

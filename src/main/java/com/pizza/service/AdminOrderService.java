@@ -102,7 +102,17 @@ public class AdminOrderService {
     }
 
     /** Result of a bulk status update (Task 10): how many orders were moved, and the order numbers skipped. */
-    public record BulkStatusUpdateResult(int updatedCount, List<String> skippedOrderNumbers) {}
+    public record BulkStatusUpdateResult(int updatedCount, List<String> skippedOrderNumbers) {
+
+        /** Concise counts-only summary for the admin UI - never enumerates order numbers. */
+        public String summaryMessage(String targetStatus) {
+            if (skippedOrderNumbers.isEmpty()) {
+                return updatedCount + " order(s) updated to " + targetStatus + ".";
+            }
+            return "Changed status of " + updatedCount + " order(s) successfully, couldn't change status of "
+                    + skippedOrderNumbers.size() + " order(s) (invalid transition).";
+        }
+    }
 
     /**
      * Applies {@code targetStatus} to every order in {@code orderIds} for

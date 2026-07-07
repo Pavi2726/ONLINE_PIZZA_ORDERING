@@ -3,6 +3,7 @@ package com.pizza.controller;
 import com.pizza.entity.Customer;
 import com.pizza.entity.Order;
 import com.pizza.entity.Pizza;
+import com.pizza.exception.ResourceNotFoundException;
 import com.pizza.service.AdminOrderService;
 import com.pizza.service.CartService;
 import com.pizza.testsupport.TestDataFactory;
@@ -21,10 +22,12 @@ import org.springframework.http.HttpMethod;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
@@ -154,6 +157,19 @@ class AdminOrderControllerTest {
                 .andExpect(model().attribute("order", order));
     }
 
+    @Test
+    void detail_withNonExistentOrder_errorPageLinksToAdminDashboard() throws Exception {
+        // Bug: a 500/404 hit while under an admin session used to always
+        // render the customer "Back to Home" link. GlobalModelAdvice already
+        // exposes currentAdmin to every view (including error.html), so an
+        // admin session here must produce a dashboard link instead.
+        when(adminOrderService.getById(999L)).thenThrow(new ResourceNotFoundException("Order not found"));
+
+        mockMvc.perform(request(HttpMethod.GET, "/admin/orders/999").session(adminSession()))
+                .andExpect(status().isNotFound())
+                .andExpect(content().string(containsString("/admin/dashboard")));
+    }
+
     // --------------------------------------------------------- status update
 
     @Test
@@ -237,11 +253,11 @@ class AdminOrderControllerTest {
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/admin/orders"))
                 .andExpect(flash().attribute("warningMessage",
-                        "1 order(s) updated to PROCESSING; skipped (invalid transition): ORD-TEST-99."));
+                        "Changed status of 1 order(s) successfully, couldn't change status of 1 order(s) (invalid transition)."));
     }
 
     @Test
-    void bulkUpdateStatus_serviceThrows_isCaughtInController_redirectsWithErrorFlash_notA500() throws Exception {
+    void bulkUpdateStatus_serviceThrowsIllegalArgument_flashesMessageVerbatim_notA500() throws Exception {
         when(adminOrderService.bulkUpdateStatus(List.of(1L), "NOT_A_STATUS"))
                 .thenThrow(new IllegalArgumentException("Unknown target status: NOT_A_STATUS"));
 
@@ -252,5 +268,36 @@ class AdminOrderControllerTest {
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/admin/orders"))
                 .andExpect(flash().attribute("errorMessage", "Unknown target status: NOT_A_STATUS"));
+    }
+
+    @Test
+    void bulkUpdateStatus_serviceThrowsUnexpectedException_flashesGenericSanitizedMessage() throws Exception {
+        // Anything other than IllegalArgumentException (e.g. a DataAccessException
+        // bubbling out of a repository save) must not leak its raw message to the UI.
+        when(adminOrderService.bulkUpdateStatus(List.of(1L), "PROCESSING"))
+                .thenThrow(new RuntimeException("Duplicate entry 'x' for key order.uk_order_number"));
+
+        mockMvc.perform(request(HttpMethod.POST, "/admin/orders/bulk-status")
+                        .param("orderIds", "1")
+                        .param("targetStatus", "PROCESSING")
+                        .session(adminSession()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/orders"))
+                .andExpect(flash().attribute("errorMessage",
+                        "Something went wrong updating order statuses. Please try again."));
+    }
+
+    @Test
+    void updateStatus_serviceThrowsUnexpectedException_flashesGenericSanitizedMessage() throws Exception {
+        when(adminOrderService.updateStatus(1L, "PROCESSING"))
+                .thenThrow(new RuntimeException("Duplicate entry 'x' for key order.uk_order_number"));
+
+        mockMvc.perform(request(HttpMethod.POST, "/admin/orders/1/status")
+                        .param("targetStatus", "PROCESSING")
+                        .session(adminSession()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/orders/1"))
+                .andExpect(flash().attribute("errorMessage",
+                        "Something went wrong updating the order status. Please try again."));
     }
 }

@@ -113,15 +113,7 @@ public String reorder(@PathVariable Long orderId,
 
     OrderService.ReorderResult result = orderService.reorder(orderId, customer.getId());
 
-    StringBuilder message = new StringBuilder(result.addedCount() + " item(s) added to your cart.");
-    if (!result.skippedPizzaNames().isEmpty()) {
-        message.append(" Unavailable, skipped: ").append(String.join(", ", result.skippedPizzaNames())).append(".");
-    }
-    if (!result.cappedPizzaNames().isEmpty()) {
-        message.append(" Capped at maximum quantity: ").append(String.join(", ", result.cappedPizzaNames())).append(".");
-    }
-
-    redirectAttributes.addFlashAttribute("successMessage", message.toString());
+    redirectAttributes.addFlashAttribute("successMessage", result.summaryMessage());
     return "redirect:/cart";
 }
 @GetMapping("/checkout")

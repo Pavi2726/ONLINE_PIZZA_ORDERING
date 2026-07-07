@@ -16,6 +16,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -312,5 +313,45 @@ class CartServiceTest {
         int count = cartService.getItemCount("jane@example.com");
 
         assertThat(count).isEqualTo(6);
+    }
+
+    // ---------------------------------------------------------------- getCart (empty-cart 500 bug)
+
+    @Test
+    void getCart_isNotReadOnly_soCreatingTheFirstCartRowCanBePersisted() throws NoSuchMethodException {
+        // Against a real MySQL connection, @Transactional(readOnly = true)
+        // makes the session reject any INSERT - including the
+        // find-or-create save below - which is exactly what a customer with
+        // no cart row yet (e.g. clicking the cart icon before ever adding an
+        // item) used to hit as a 500. H2 (used elsewhere in this project's
+        // integration tests) doesn't enforce that restriction, so this must
+        // be asserted directly against the method's transaction metadata.
+        Method getCart = CartService.class.getMethod("getCart", String.class);
+        Transactional txn = getCart.getAnnotation(Transactional.class);
+
+        assertThat(txn == null || !txn.readOnly()).isTrue();
+    }
+
+    @Test
+    void getCart_createsAndSavesNewCart_whenNoneExistsYet() {
+        when(cartRepository.findByUsername("jane@example.com")).thenReturn(Optional.empty());
+        Cart saved = TestDataFactory.cart("jane@example.com");
+        when(cartRepository.save(any(Cart.class))).thenReturn(saved);
+
+        Cart result = cartService.getCart("jane@example.com");
+
+        assertThat(result).isSameAs(saved);
+        verify(cartRepository).save(any(Cart.class));
+    }
+
+    @Test
+    void getCart_returnsExistingCart_withoutSaving_whenCartAlreadyExists() {
+        Cart existing = TestDataFactory.cart("jane@example.com");
+        when(cartRepository.findByUsername("jane@example.com")).thenReturn(Optional.of(existing));
+
+        Cart result = cartService.getCart("jane@example.com");
+
+        assertThat(result).isSameAs(existing);
+        verify(cartRepository, never()).save(any(Cart.class));
     }
 }

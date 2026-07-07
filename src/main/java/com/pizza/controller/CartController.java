@@ -162,4 +162,14 @@ public String applyCoupon(@RequestParam String couponCode,
 
     return "redirect:/cart";
 }
+
+@PostMapping("/cart/remove-coupon")
+public String removeCoupon(HttpSession session, RedirectAttributes redirectAttributes) {
+
+    session.removeAttribute("appliedCoupon");
+
+    redirectAttributes.addFlashAttribute("successMessage", "Coupon removed.");
+
+    return "redirect:/cart";
+}
 }
