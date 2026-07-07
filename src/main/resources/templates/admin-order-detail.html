@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="~{fragments/admin-layout :: head('Order ' + ${order.orderNumber})}"></head>
+
+<body class="admin-body">
+
+<nav th:replace="~{fragments/admin-layout :: topbar}"></nav>
+
+<!-- Mobile Sidebar -->
+<div th:replace="~{fragments/admin-layout :: mobileSidebar('orders')}"></div>
+
+<div class="container-fluid">
+
+    <div class="row">
+
+        <!-- Desktop Sidebar -->
+        <aside class="col-lg-2 d-none d-lg-block admin-sidebar py-3">
+            <div th:replace="~{fragments/admin-layout :: sidebarLinks('orders')}"></div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="col-lg-10 p-4">
+
+            <div th:replace="~{fragments/admin-layout :: alerts}"></div>
+
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="fw-bold">
+                    <i class="bi bi-receipt"></i>
+                    Order <span th:text="${order.orderNumber}"></span>
+                </h2>
+                <a th:href="@{/admin/orders}" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left"></i>
+                    Back to Orders
+                </a>
+            </div>
+
+            <div class="row">
+
+                <div class="col-lg-7">
+
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-header fw-bold">Items</div>
+                        <div class="card-body p-0">
+                            <table class="table mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Pizza</th>
+                                        <th>Qty</th>
+                                        <th>Price</th>
+                                        <th>Line Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="item : ${order.orderItems}">
+                                        <td th:text="${item.pizza.name}"></td>
+                                        <td th:text="${item.quantity}"></td>
+                                        <td>&#8377;<span th:text="${#numbers.formatDecimal(item.price,1,2)}"></span></td>
+                                        <td>&#8377;<span th:text="${#numbers.formatDecimal(item.lineTotal,1,2)}"></span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="card shadow-sm">
+                        <div class="card-header fw-bold">Totals</div>
+                        <div class="card-body">
+                            <p class="mb-1">Subtotal: &#8377;<span th:text="${#numbers.formatDecimal(order.subtotal,1,2)}"></span></p>
+                            <p class="mb-1" th:if="${order.couponCode != null}">
+                                Coupon: <span th:text="${order.couponCode}"></span>
+                                (&#8377;<span th:text="${#numbers.formatDecimal(order.discountAmount,1,2)}"></span> off)
+                            </p>
+                            <p class="mb-1">Tax: &#8377;<span th:text="${#numbers.formatDecimal(order.tax,1,2)}"></span></p>
+                            <p class="fw-bold mb-0">Total: &#8377;<span th:text="${#numbers.formatDecimal(order.totalAmount,1,2)}"></span></p>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="col-lg-5">
+
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-header fw-bold">Customer</div>
+                        <div class="card-body">
+                            <p class="mb-1"><strong>Name:</strong> <span th:text="${order.customer.fullName}"></span></p>
+                            <p class="mb-1"><strong>Email:</strong> <span th:text="${order.customer.email}"></span></p>
+                            <p class="mb-1"><strong>Delivery Address:</strong> <span th:text="${order.deliveryAddress}"></span></p>
+                            <p class="mb-0"><strong>Phone:</strong> <span th:text="${order.phone}"></span></p>
+                        </div>
+                    </div>
+
+                    <div class="card shadow-sm">
+                        <div class="card-header fw-bold">Status</div>
+                        <div class="card-body">
+
+                            <p>
+                                Current status:
+                                <span th:class="'badge ' + ${
+                                    order.status == 'PLACED' ? 'bg-warning text-dark' :
+                                    order.status == 'PROCESSING' ? 'bg-info text-dark' :
+                                    order.status == 'OUT_FOR_DELIVERY' ? 'bg-primary' :
+                                    order.status == 'DELIVERED' ? 'bg-success' :
+                                    order.status == 'CANCELLED' ? 'bg-danger' : 'bg-secondary'
+                                }" th:text="${order.status}"></span>
+                            </p>
+
+                            <form th:if="${order.status == 'PLACED'}"
+                                  th:action="@{/admin/orders/{id}/status(id=${order.id})}" method="post" class="d-flex gap-2 flex-wrap">
+                                <button type="submit" name="targetStatus" value="PROCESSING" class="btn btn-info">
+                                    <i class="bi bi-arrow-right-circle"></i> Mark Processing
+                                </button>
+                                <button type="submit" name="targetStatus" value="CANCELLED" class="btn btn-danger"
+                                        onclick="return confirm('Cancel this order?');">
+                                    <i class="bi bi-x-circle"></i> Cancel Order
+                                </button>
+                            </form>
+
+                            <form th:if="${order.status == 'PROCESSING'}"
+                                  th:action="@{/admin/orders/{id}/status(id=${order.id})}" method="post" class="d-flex gap-2 flex-wrap">
+                                <button type="submit" name="targetStatus" value="OUT_FOR_DELIVERY" class="btn btn-primary">
+                                    <i class="bi bi-arrow-right-circle"></i> Mark Out for Delivery
+                                </button>
+                                <button type="submit" name="targetStatus" value="CANCELLED" class="btn btn-danger"
+                                        onclick="return confirm('Cancel this order?');">
+                                    <i class="bi bi-x-circle"></i> Cancel Order
+                                </button>
+                            </form>
+
+                            <form th:if="${order.status == 'OUT_FOR_DELIVERY'}"
+                                  th:action="@{/admin/orders/{id}/status(id=${order.id})}" method="post" class="d-flex gap-2 flex-wrap">
+                                <button type="submit" name="targetStatus" value="DELIVERED" class="btn btn-success">
+                                    <i class="bi bi-check-circle"></i> Mark Delivered
+                                </button>
+                            </form>
+
+                            <p th:if="${order.status == 'DELIVERED' or order.status == 'CANCELLED'}"
+                               class="text-muted mb-0">
+                                This order is in a final state — no further status changes are possible.
+                            </p>
+
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </main>
+
+    </div>
+
+</div>
+
+<div th:replace="~{fragments/admin-layout :: scripts}"></div>
+
+</body>
+
+</html>

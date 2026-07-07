@@ -109,11 +109,38 @@
 
             </form>
 
+            <div th:if="${coupon != null}" class="mt-3 d-flex align-items-center gap-2">
+                <span class="badge bg-success">
+                    <span th:text="${coupon.couponCode}"></span> applied
+                </span>
+                <form th:action="@{/cart/remove-coupon}" method="post" class="d-inline">
+                    <button type="submit" class="btn btn-outline-danger btn-sm">Remove Coupon</button>
+                </form>
+            </div>
+
+            <div th:if="${!#lists.isEmpty(activeCoupons)}" class="mt-3">
+                <h6>Available Offers</h6>
+                <div class="d-flex flex-wrap gap-2">
+                    <form th:each="c : ${activeCoupons}"
+                          th:action="@{/cart/apply-coupon}" method="post" class="d-inline">
+                        <input type="hidden" name="couponCode" th:value="${c.couponCode}">
+                        <button type="submit"
+                                th:class="${coupon != null and coupon.couponCode == c.couponCode}
+                                    ? 'btn btn-success btn-sm'
+                                    : 'btn btn-outline-success btn-sm'"
+                                th:disabled="${coupon != null and coupon.couponCode != c.couponCode}">
+                            <span th:text="${c.couponCode}"></span> — <span th:text="${c.discountPercentage}"></span>% off
+                            <span th:if="${coupon != null and coupon.couponCode == c.couponCode}">(Applied)</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
         </div>
 
     </div>
 
-    
+
     <div class="d-flex justify-content-end mt-4"
      th:if="${!#lists.isEmpty(cart.cartItems)}">
 

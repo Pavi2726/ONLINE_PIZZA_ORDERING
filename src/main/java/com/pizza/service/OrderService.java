@@ -11,8 +11,6 @@ import java.time.Duration;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.pizza.dto.EditOrderDTO;
-import com.pizza.dto.EditOrderItemDTO;
 import com.pizza.dto.OrderDTO;
 import com.pizza.entity.Cart;
 import com.pizza.entity.CartItem;
@@ -337,36 +335,6 @@ validateEditWindow(order);
     // Save changes
     orderRepository.save(order);
 }
-public EditOrderDTO getEditOrder(Long orderId, Long customerId) {
-
-    Order order = findOrderById(orderId, customerId);
-
-    EditOrderDTO dto = new EditOrderDTO();
-
-    dto.setOrderId(order.getId());
-    dto.setDeliveryAddress(order.getDeliveryAddress());
-    dto.setPhone(order.getPhone());
-    dto.setCouponCode(order.getCouponCode());
-
-    List<EditOrderItemDTO> items = new ArrayList<>();
-
-    for (OrderItem item : order.getOrderItems()) {
-
-        EditOrderItemDTO itemDTO = new EditOrderItemDTO();
-
-        itemDTO.setOrderItemId(item.getId());
-        itemDTO.setPizzaId(item.getPizza().getId());
-        itemDTO.setPizzaName(item.getPizza().getName());
-        itemDTO.setQuantity(item.getQuantity());
-        itemDTO.setPrice(item.getPrice());
-
-        items.add(itemDTO);
-    }
-
-    dto.setItems(items);
-
-    return dto;
-}
 
 @Transactional
 public void addPizzaToOrder(Long orderId,
@@ -422,6 +390,59 @@ public void addPizzaToOrder(Long orderId,
 
     orderRepository.save(order);
 }
+/**
+ * Result of a reorder attempt: how many order lines were appended to the
+ * customer's cart, which pizzas were skipped because they are no longer
+ * available, and which pizzas had their added quantity clamped at the
+ * per-item cart cap.
+ */
+public record ReorderResult(int addedCount, List<String> skippedPizzaNames, List<String> cappedPizzaNames) {
+
+    /** Concise counts-only summary for the flash message - never enumerates pizza names. */
+    public String summaryMessage() {
+        StringBuilder message = new StringBuilder(addedCount + " item(s) added to your cart.");
+        if (!skippedPizzaNames.isEmpty()) {
+            message.append(" ").append(skippedPizzaNames.size()).append(" unavailable, skipped.");
+        }
+        if (!cappedPizzaNames.isEmpty()) {
+            message.append(" ").append(cappedPizzaNames.size()).append(" capped at maximum quantity.");
+        }
+        return message.toString();
+    }
+}
+
+/**
+ * Reorders a past order: every still-available pizza is appended to the
+ * customer's existing cart (never clears it first) via {@link
+ * CartService#addPizzaToCartClamped(String, Long, int)}. Unavailable pizzas
+ * are skipped rather than aborting the whole reorder; lines that would
+ * exceed the per-item cart cap are clamped rather than throwing.
+ */
+@Transactional
+public ReorderResult reorder(Long orderId, Long customerId) {
+    Order order = findOrderById(orderId, customerId);
+
+    int added = 0;
+    List<String> skipped = new ArrayList<>();
+    List<String> capped = new ArrayList<>();
+
+    for (OrderItem item : order.getOrderItems()) {
+        Pizza pizza = item.getPizza();
+        if (!pizza.isAvailable()) {
+            skipped.add(pizza.getName());
+            continue;
+        }
+        boolean wasClamped = cartService.addPizzaToCartClamped(
+                order.getCustomer().getEmail(), pizza.getId(), item.getQuantity());
+        if (wasClamped) {
+            capped.add(pizza.getName());
+        }
+        added++;
+    }
+
+    return new ReorderResult(added, skipped, capped);
+}
+
 @Transactional
 public void updateOrderDetails(Long orderId,
                                String deliveryAddress,

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<!--/*
+  Shared visual status stepper for customer-facing order views (US-018 / Task 5).
+
+  Usage: th:replace="~{fragments/order-status :: stepper(${order.status})}"
+
+  CANCELLED renders a banner instead of the 4-step PLACED->DELIVERED stepper.
+  Otherwise renders 4 icons (filled up to OrderStatus.stepIndex(status), outline
+  after) plus a static estimated-delivery-window caption when one applies.
+
+  The 4 steps are a fixed, known set (not a dynamic collection), so they're
+  spelled out explicitly below rather than driven by an iterated inline list -
+  simpler than fighting Thymeleaf's iteration-status availability on list
+  literals for no benefit.
+*/-->
+<div th:fragment="stepper(status)">
+
+    <!-- Cancelled: banner instead of stepper -->
+    <div th:if="${status == 'CANCELLED'}" class="alert alert-danger mb-0 py-2">
+        <i class="bi bi-x-circle-fill"></i> This order was cancelled.
+    </div>
+
+    <!-- Normal linear progress -->
+    <div th:unless="${status == 'CANCELLED'}"
+         th:with="stepIdx=${T(com.pizza.entity.OrderStatus).stepIndex(status)},
+                   estimate=${T(com.pizza.entity.OrderStatus).valueOf(status).estimatedWindowLabel()}">
+        <div class="d-flex justify-content-between text-center">
+
+            <div class="flex-fill">
+                <i th:class="${stepIdx >= 0} ? 'bi bi-check-circle-fill text-success' : 'bi bi-circle text-muted'"
+                   style="font-size:1.5rem;"></i>
+                <div class="small">Placed</div>
+            </div>
+
+            <div class="flex-fill">
+                <i th:class="${stepIdx >= 1} ? 'bi bi-check-circle-fill text-success' : 'bi bi-circle text-muted'"
+                   style="font-size:1.5rem;"></i>
+                <div class="small">Processing</div>
+            </div>
+
+            <div class="flex-fill">
+                <i th:class="${stepIdx >= 2} ? 'bi bi-check-circle-fill text-success' : 'bi bi-circle text-muted'"
+                   style="font-size:1.5rem;"></i>
+                <div class="small">Out for Delivery</div>
+            </div>
+
+            <div class="flex-fill">
+                <i th:class="${stepIdx >= 3} ? 'bi bi-check-circle-fill text-success' : 'bi bi-circle text-muted'"
+                   style="font-size:1.5rem;"></i>
+                <div class="small">Delivered</div>
+            </div>
+
+        </div>
+        <p th:if="${!#strings.isEmpty(estimate)}"
+           class="text-center text-muted small mt-2 mb-0">
+            Estimated: <span th:text="${estimate}"></span>
+        </p>
+    </div>
+
+</div>
+</body>
+</html>

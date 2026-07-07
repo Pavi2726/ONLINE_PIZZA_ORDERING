@@ -122,6 +122,24 @@
                                 PLACED
                             </span>
 
+                            <!-- PROCESSING -->
+                            <span th:if="${order.status == 'PROCESSING'}"
+                                  class="badge bg-info text-dark">
+                                PROCESSING
+                            </span>
+
+                            <!-- OUT_FOR_DELIVERY -->
+                            <span th:if="${order.status == 'OUT_FOR_DELIVERY'}"
+                                  class="badge bg-primary">
+                                OUT FOR DELIVERY
+                            </span>
+
+                            <!-- DELIVERED -->
+                            <span th:if="${order.status == 'DELIVERED'}"
+                                  class="badge bg-success">
+                                DELIVERED
+                            </span>
+
                             <!-- CANCELLED -->
                             <span th:if="${order.status == 'CANCELLED'}"
                                   class="badge bg-danger">
@@ -129,6 +147,8 @@
                             </span>
 
                         </p>
+
+                        <div th:replace="~{fragments/order-status :: stepper(${order.status})}"></div>
 
                        <p class="text-muted mb-0">
 
@@ -164,11 +184,11 @@
 
                     <!-- Cancel -->
                     <form th:action="@{/orders/cancel/{id}(id=${order.id})}"
-                          method="post">
+                          method="post"
+                          onsubmit="return confirm('Are you sure you want to cancel this order?');">
 
                         <button type="submit"
-                                class="btn btn-danger btn-sm"
-                                onclick="return confirm('Are you sure you want to cancel this order?');">
+                                class="btn btn-danger btn-sm">
 
                             <i class="bi bi-x-circle"></i>
                             Cancel Order
@@ -177,6 +197,15 @@
 
                     </form>
 
+                </div>
+
+                <!-- Reorder: available for orders in ANY status, not just PLACED. -->
+                <div class="d-flex justify-content-end mt-2">
+                    <form th:action="@{/orders/reorder/{id}(id=${order.id})}" method="post">
+                        <button type="submit" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-arrow-repeat"></i> Reorder
+                        </button>
+                    </form>
                 </div>
 
             </div>

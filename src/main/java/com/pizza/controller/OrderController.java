@@ -6,9 +6,7 @@ import java.util.List;
 
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,14 +18,12 @@ import com.pizza.entity.Cart;
 import com.pizza.entity.Coupon;
 import com.pizza.entity.Customer;
 import com.pizza.entity.Order;
-import com.pizza.entity.Pizza;
 import com.pizza.service.CartService;
 import com.pizza.service.OrderService;
-import com.pizza.service.PizzaService;
 import com.pizza.util.SessionUtil;
 
 import jakarta.servlet.http.HttpSession;
-import jakarta.validation.Valid;
+
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -39,62 +35,7 @@ import lombok.RequiredArgsConstructor;
 public class OrderController {
 
     private final OrderService orderService;
-    private final PizzaService pizzaService;
     private final CartService cartService;
-
-    /** Shows the order form pre-filled from the logged-in customer. */
-    @GetMapping("/new")
-    public String showOrderForm(
-            @RequestParam("pizzaId") Long pizzaId,
-            HttpSession session,
-            Model model,
-            RedirectAttributes redirectAttributes) {
-
-        Customer customer = SessionUtil.getCurrentCustomer(session);
-        if (customer == null) {
-            redirectAttributes.addFlashAttribute("errorMessage",
-                    "Please log in to place an order.");
-            return "redirect:/login";
-        }
-
-        Pizza pizza = pizzaService.findById(pizzaId);
-        if (!pizza.isAvailable()) {
-            redirectAttributes.addFlashAttribute("errorMessage",
-                    "This pizza is currently unavailable.");
-            return "redirect:/pizzas";
-        }
-        OrderDTO orderDTO = new OrderDTO();
-        orderDTO.setDeliveryAddress(customer.getAddress());
-        orderDTO.setPhone(customer.getPhone());
-
-        model.addAttribute("orderDTO", orderDTO);
-        model.addAttribute("pizza", pizza);
-        return "place-order";
-    }
-
-    /** Places the order and redirects to the confirmation page. */
-    @PostMapping
-    public String placeOrder(
-            @Valid @ModelAttribute("orderDTO") OrderDTO orderDTO,
-            BindingResult bindingResult,
-            HttpSession session,
-            Model model,
-            RedirectAttributes redirectAttributes) {
-
-        Customer customer = SessionUtil.getCurrentCustomer(session);
-        if (customer == null) {
-            redirectAttributes.addFlashAttribute("errorMessage",
-                    "Please log in to place an order.");
-            return "redirect:/login";
-        }
-
-        if (bindingResult.hasErrors()) {
-            return "place-order";
-        }
-
-        Order order = orderService.placeOrder(orderDTO, customer);
-        return "redirect:/orders/success/" + order.getOrderNumber();
-    }
 
     /** Order confirmation page (US-007). Only the placing customer may view it. */
     @GetMapping("/success/{orderNumber}")
@@ -157,6 +98,23 @@ public String cancelOrder(
             "Order cancelled successfully.");
 
     return "redirect:/orders/history";
+}
+@PostMapping("/reorder/{orderId}")
+public String reorder(@PathVariable Long orderId,
+                       HttpSession session,
+                       RedirectAttributes redirectAttributes) {
+
+    Customer customer = SessionUtil.getCurrentCustomer(session);
+
+    if (customer == null) {
+        redirectAttributes.addFlashAttribute("errorMessage", "Please log in first.");
+        return "redirect:/login";
+    }
+
+    OrderService.ReorderResult result = orderService.reorder(orderId, customer.getId());
+
+    redirectAttributes.addFlashAttribute("successMessage", result.summaryMessage());
+    return "redirect:/cart";
 }
 @GetMapping("/checkout")
 public String checkout(HttpSession session,
@@ -225,15 +183,23 @@ public String placeCartOrder(HttpSession session,
         dto.setCouponCode(coupon.getCouponCode());
     }
 
-    Order order = orderService.placeOrder(dto, customer);
+    try {
+        Order order = orderService.placeOrder(dto, customer);
 
-    session.removeAttribute("appliedCoupon");
+        session.removeAttribute("appliedCoupon");
 
-    redirectAttributes.addFlashAttribute(
-            "successMessage",
-            "Order placed successfully!");
+        redirectAttributes.addFlashAttribute(
+                "successMessage",
+                "Order placed successfully!");
 
-    return "redirect:/orders/success/" + order.getOrderNumber();
+        return "redirect:/orders/success/" + order.getOrderNumber();
+    } catch (IllegalArgumentException e) {
+        session.removeAttribute("appliedCoupon");
+
+        redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+
+        return "redirect:/orders/checkout";
+    }
 }
 @GetMapping("/edit/{orderId}")
 public String showEditOrderPage(@PathVariable Long orderId,

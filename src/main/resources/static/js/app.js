@@ -33,15 +33,30 @@
 
     // ---- Prevent duplicate form submissions ----
     document.querySelectorAll("form[method='post']").forEach(function (form) {
-        form.addEventListener("submit", function () {
-            const submitBtn = form.querySelector("button[type='submit']");
-            if (submitBtn && !submitBtn.disabled) {
-                submitBtn.disabled = true;
-                const spinner = submitBtn.querySelector(".spinner-border");
-                if (spinner) {
-                    spinner.classList.remove("d-none");
+        form.addEventListener("submit", function (event) {
+            // Deferred so this runs after every other submit listener on the
+            // form (e.g. a page's own client-side validation, which may still
+            // call preventDefault()) and after the browser has already
+            // captured the submitter's name/value for the request. Disabling
+            // the button synchronously here would (a) leave it disabled
+            // forever if a later listener cancels the submit, since nothing
+            // else re-enables it, and (b) for forms where several buttons
+            // share the submit but each carries its own name/value (e.g.
+            // admin order-status actions), drop that value from the POST
+            // entirely by disabling it before the browser reads it.
+            setTimeout(function () {
+                if (event.defaultPrevented) {
+                    return;
                 }
-            }
+                const submitBtn = form.querySelector("button[type='submit']");
+                if (submitBtn && !submitBtn.disabled) {
+                    submitBtn.disabled = true;
+                    const spinner = submitBtn.querySelector(".spinner-border");
+                    if (spinner) {
+                        spinner.classList.remove("d-none");
+                    }
+                }
+            }, 0);
         });
     });
 
@@ -102,4 +117,40 @@
             alert.classList.remove("show");
         }, 5000);
     });
+
+    // ---- Bulk order-status select-all (admin order list) ----
+    const selectAllOrders = document.getElementById("selectAllOrders");
+    if (selectAllOrders) {
+        selectAllOrders.addEventListener("change", function () {
+            document.querySelectorAll('input[name="orderIds"]').forEach(function (cb) {
+                cb.checked = selectAllOrders.checked;
+            });
+        });
+    }
+
+    // ---- Dark mode toggle ----
+    const themeToggle = document.getElementById("themeToggle");
+    if (themeToggle) {
+        const themeIcon = themeToggle.querySelector("i");
+
+        const updateIcon = function (theme) {
+            if (theme === "dark") {
+                themeIcon.classList.remove("bi-moon-stars");
+                themeIcon.classList.add("bi-sun-fill");
+            } else {
+                themeIcon.classList.remove("bi-sun-fill");
+                themeIcon.classList.add("bi-moon-stars");
+            }
+        };
+
+        updateIcon(document.documentElement.getAttribute("data-bs-theme"));
+
+        themeToggle.addEventListener("click", function () {
+            const current = document.documentElement.getAttribute("data-bs-theme");
+            const next = current === "dark" ? "light" : "dark";
+            document.documentElement.setAttribute("data-bs-theme", next);
+            localStorage.setItem("pizza-theme", next);
+            updateIcon(next);
+        });
+    }
 })();

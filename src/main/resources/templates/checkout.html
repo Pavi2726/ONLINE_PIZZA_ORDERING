@@ -5,6 +5,7 @@
 <body>
 
 <div th:replace="~{fragments/layout :: navbar}"></div>
+<div th:replace="~{fragments/layout :: alerts}"></div>
 
 <div class="container mt-5">
 
@@ -90,6 +91,10 @@
                         Back to Cart
                     </a>
 
+                    <p class="text-muted small mt-2 mb-0">
+                        Estimated delivery: <span th:text="${T(com.pizza.entity.OrderStatus).PLACED.estimatedWindowLabel()}"></span> after placing your order.
+                    </p>
+
                 </form>
 
             </div>
@@ -99,6 +104,9 @@
     </div>
 
 </div>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<div th:replace="~{fragments/layout :: scripts}"></div>
 
 </body>
 </html>

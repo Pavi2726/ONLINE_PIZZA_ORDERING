@@ -9,8 +9,19 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
 @Entity
 @Table(name = "cart_item")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class CartItem {
 
     @Id
@@ -27,37 +38,7 @@ public class CartItem {
     @JoinColumn(name = "pizza_id")
     private Pizza pizza;
 
-    public CartItem() {
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public int getQuantity() {
-        return quantity;
-    }
-
-    public void setQuantity(int quantity) {
-        this.quantity = quantity;
-    }
-
-    public Cart getCart() {
-        return cart;
-    }
-
-    public void setCart(Cart cart) {
-        this.cart = cart;
-    }
-
-    public Pizza getPizza() {
-        return pizza;
-    }
-
-    public void setPizza(Pizza pizza) {
-        this.pizza = pizza;
-    }
     public BigDecimal getItemTotal() {
-    return pizza.getPrice().multiply(BigDecimal.valueOf(quantity));
-}
+        return pizza.getPrice().multiply(BigDecimal.valueOf(quantity));
+    }
 }

@@ -8,6 +8,7 @@ import com.pizza.service.CloudinaryService.UploadResult;
 import java.util.Comparator;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -175,13 +176,30 @@ public class PizzaService {
     /**
      * Deletes a pizza and its Cloudinary image (US-006).
      *
+     * <p>The DB row is deleted (and flushed, to force the FK constraint
+     * check to happen here rather than at eventual commit) before the
+     * Cloudinary image, so a pizza still referenced by an existing order
+     * fails cleanly with the image left intact - mirroring the
+     * upload-first/rollback-on-failure convention already used in {@link
+     * #add}/{@link #update}, just in the opposite direction since deleting
+     * is the inverse operation.
+     *
      * @param id the pizza id
      */
     @Transactional
     public void delete(Long id) {
         Pizza pizza = findById(id);
-        cloudinaryService.delete(pizza.getImagePublicId());
-        pizzaRepository.delete(pizza);
+        String publicId = pizza.getImagePublicId();
+
+        try {
+            pizzaRepository.delete(pizza);
+            pizzaRepository.flush();
+        } catch (DataIntegrityViolationException ex) {
+            throw new IllegalStateException(
+                    "This pizza cannot be deleted because it has already been ordered.", ex);
+        }
+
+        cloudinaryService.delete(publicId);
     }
 
     /** Maps an entity to a form-backing DTO (for the edit screen). */
