@@ -96,48 +96,30 @@ ONLINEPIZZAORDERING/
 │       ├── application.properties
 │       ├── application.properties.example
 │       │
-│       ├── templates/
-│       │   ├── fragments/
-│       │   │   ├── layout.html              # Customer navbar/footer/alerts/scripts (th:replace fragments)
-│       │   │   └── admin-layout.html        # Admin sidebar/topbar/alerts/scripts
-│       │   ├── home.html
-│       │   ├── login.html
-│       │   ├── register.html
-│       │   ├── pizza-list.html              # Customer browse/search/filter/sort/pagination
-│       │   ├── cart.html                    # Cart view, qty +/-, remove, apply coupon
-│       │   ├── checkout.html                # Order summary + place order (does not use fragments/layout)
-│       │   ├── place-order.html             # Legacy single-pizza form — orphaned, not linked anywhere
-│       │   ├── order-success.html
-│       │   ├── order-history.html           # US-009, status badges for all 5 statuses
-│       │   ├── edit-order.html              # US-010 (does not use fragments/layout; no viewport meta tag)
-│       │   ├── error.html
-│       │   ├── admin-login.html
-│       │   ├── admin-dashboard.html
-│       │   ├── admin-pizza-list.html
-│       │   ├── add-pizza.html
-│       │   ├── edit-pizza.html
-│       │   ├── admin-coupon-list.html
-│       │   ├── add-coupon.html
-│       │   ├── edit-coupon.html
-│       │   ├── admin-customer-list.html
-│       │   ├── edit-customer.html
-│       │   ├── admin-order-list.html
-│       │   └── admin-order-detail.html
-│       │
-│       └── static/
-│           ├── css/styles.css               # Bootstrap 5.3.3 (CDN) + ~120 lines of custom CSS/tokens
-│           └── js/
-│               ├── app.js                   # order-total calc, double-submit guard, pizza-grid pagination
-│               └── admin-table.js           # admin pizza-table pagination
+│       └── static/                         # Vite build output lands here (target/classes/static)
 │
-└── src/test/java/com/pizza/                 # JUnit 5 suite — 220 tests, 31 classes (see TESTING.md)
-    ├── AbstractIntegrationTest.java         # shared @SpringBootTest + H2 + mocked Cloudinary base
-    ├── SmokeTest.java
-    ├── testsupport/TestDataFactory.java     # shared entity fixtures for all tests
-    ├── service/                             # 8 Mockito unit-test classes
-    ├── entity/OrderStatusTest.java          # exhaustive transition-matrix test
-    ├── controller/                          # 10 @WebMvcTest classes, one per controller
-    └── integration/                         # 11 @SpringBootTest + H2 classes
+└── frontend/                                # React SPA — the entire user interface
+    ├── index.html                           # Shell; carries the pre-paint dark-mode script
+    ├── vite.config.js                       # /api proxy (dev), build → target/classes/static
+    └── src/
+        ├── main.jsx                         # Bootstrap CSS/JS + providers + router
+        ├── App.jsx                          # Route table; ApiBridge turns a 401 into a redirect
+        ├── api/
+        │   ├── client.js                    # fetch wrapper: credentials, ApiError, 401 hook
+        │   └── index.js                     # auth / pizzas / cart / orders / admin endpoints
+        ├── context/
+        │   ├── SessionContext.jsx           # successor to GlobalModelAdvice
+        │   └── AlertContext.jsx             # successor to the flash attributes
+        ├── hooks/                           # useApi, useSubmit, usePagination, useTheme
+        ├── components/
+        │   ├── layout/CustomerLayout.jsx    # navbar + alerts + footer
+        │   ├── layout/AdminLayout.jsx       # topbar + sidebar + offcanvas
+        │   ├── AlertStack.jsx  Guards.jsx  Pagination.jsx  SubmitButton.jsx
+        │   └── OrderStatusStepper.jsx  StatusBadge.jsx
+        ├── lib/format.js                    # money / dateTime / abbreviate
+        ├── pages/                           # Home, Login, Register, PizzaList, Cart,
+        │                                    # Checkout, OrderSuccess, OrderHistory, EditOrder
+        └── pages/admin/                     # Dashboard, pizzas, coupons, customers, orders
 ```
 
 ---
@@ -145,9 +127,9 @@ ONLINEPIZZAORDERING/
 ## Architecture
 
 ```
-Browser (Thymeleaf)
-        ↓
-Controller  ← interceptors (AdminAuth on /admin/**, CustomerAuth on /orders/** only)
+React SPA (browser)  ── fetch, JSESSIONID cookie ──┐
+                                                    ↓
+@RestController (com.pizza.api)  ← interceptors: 401 JSON on /api/admin/**, /api/cart/**, /api/orders/**
         ↓
 Service     ← @Transactional business logic
         ↓
@@ -156,75 +138,92 @@ Repository  ← Spring Data JPA
 Aiven MySQL (production) / H2 in-memory (test suite)
 ```
 
+Anything that is not a real static file and not under `/api/**` is served the SPA shell
+(`SpaForwardingConfig`), so a hard refresh on a client route like `/admin/orders/5` works.
+Those paths are deliberately **not** interceptor-guarded — the shell must load before it can
+ask who the visitor is; the data behind it is guarded, which is what actually matters.
+
 External services:
 - **Cloudinary** — pizza image storage
 
 Authentication is fully local (BCrypt + `HttpSession`); no external auth provider, no Spring Security.
 
-**Note on interceptor coverage:** `/cart/**` (add/view/remove/increase/decrease/apply-coupon) is not covered by either interceptor and has no in-controller session check for the mutation endpoints — this is a known gap, not an intentional public API.
+**Note on interceptor coverage:** every data-returning route is guarded. `/api/cart/**` and
+`/api/orders/**` require a customer, `/api/admin/**` requires an admin, and cart/order item
+lookups are additionally scoped to the caller's own rows in the service layer, so one
+customer cannot reach another's cart item by id (see `CartOwnershipIdorIntegrationTest`).
 
 ---
 
 ## Route Map
 
+Every server route is JSON under `/api/**`. Everything else is a React Router path served
+from the SPA shell.
+
 ### Public (no session required)
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/` | Home |
-| GET/POST | `/register` | Customer registration — US-001 |
-| GET/POST | `/login` | Customer login — US-002 |
-| GET | `/logout` | Customer logout |
-| GET | `/pizzas` | Pizza menu, search/filter/sort — US-003 |
-| GET/POST | `/admin/login` | Admin login |
+| GET | `/api/me` | Session bootstrap. 200 with nulls when logged out — **not** 401 |
+| GET | `/api/pizzas?search=&category=&sort=` | Catalogue — US-003 (also backs the home page's featured strip) |
+| POST | `/api/auth/register` | Customer registration — US-001 |
+| POST | `/api/auth/login` | Customer login — US-002 |
+| POST | `/api/auth/logout` | Clears the principal **and** the applied coupon |
+| POST | `/api/admin/login` | Admin login |
+| POST | `/api/admin/logout` | Admin logout |
 
-### Cart (not session-gated — see note above)
+### Customer only (`currentCustomer`; 401 JSON otherwise)
 | Method | Path | Purpose |
 |--------|------|---------|
-| POST | `/cart/add` | Add pizza to cart (checks for a customer session in-controller) |
-| GET | `/cart` | View cart (checks for a customer session in-controller) |
-| POST | `/cart/remove` | Remove a cart item |
-| POST | `/increase/{cartItemId}` | Increase item quantity |
-| POST | `/decrease/{cartItemId}` | Decrease item quantity |
-| POST | `/cart/apply-coupon` | Validate and store a coupon in session — US-008 |
+| GET | `/api/cart` | Cart, totals, applied + available coupons. Also backs the checkout screen |
+| POST | `/api/cart/items` | Add a pizza |
+| DELETE | `/api/cart/items/{id}` | Remove a line |
+| POST | `/api/cart/items/{id}/increase` · `/decrease` | Quantity |
+| POST · DELETE | `/api/cart/coupon` | Apply / remove a coupon |
+| POST | `/api/orders` | Place the cart as an order — US-007 |
+| GET | `/api/orders` | Order history — US-009 |
+| GET | `/api/orders/by-number/{orderNumber}` | Confirmation screen |
+| GET | `/api/orders/{id}` | Edit screen; **409** once the 5-minute window closes — US-010 |
+| PUT | `/api/orders/{id}` | Update delivery address / phone |
+| POST | `/api/orders/{id}/items` | Add a pizza to an order still in its window |
+| POST | `/api/orders/{id}/items/{itemId}/increase` · `/decrease` | Quantity |
+| DELETE | `/api/orders/{id}/items/{itemId}` | Remove an item |
+| POST | `/api/orders/{id}/cancel` | Cancel — 409 if not PLACED |
+| POST | `/api/orders/{id}/reorder` | Merge a past order back into the cart |
 
-### Customer only (`currentCustomer` session, enforced on `/orders/**`)
+Every cart mutation returns the whole refreshed cart, so the page and the navbar badge
+re-render from the mutation's own response without a follow-up GET.
+
+### Admin only (`currentAdmin`; 401 JSON otherwise)
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/orders/new` | *Legacy, orphaned — not linked from any page; throws if hit directly* |
-| POST | `/orders` | *Legacy, orphaned — same as above* |
-| GET | `/orders/checkout` | Checkout summary from cart + coupon — US-007 |
-| POST | `/orders/place` | Place order from cart — US-007 |
-| GET | `/orders/success/{orderNumber}` | Confirmation |
-| GET | `/orders/history` | Order history — US-009 |
-| POST | `/orders/cancel/{orderId}` | Cancel own order (only if `PLACED`) — US-011 |
-| GET | `/orders/edit/{orderId}` | Edit-order page (5-minute window) — US-010 |
-| POST | `/orders/edit/{orderId}/increase/{itemId}` | Increase item qty in a pending order |
-| POST | `/orders/edit/{orderId}/decrease/{itemId}` | Decrease item qty (floor 1) |
-| POST | `/orders/edit/{orderId}/add-pizza` | Add a new line to a pending order |
-| POST | `/orders/edit/{orderId}` | Update delivery address/phone |
-| POST | `/orders/edit/{orderId}/remove/{itemId}` | Remove a line item (blocked if it's the last one) |
+| GET | `/api/admin/dashboard` | Pizza counts |
+| GET | `/api/admin/pizzas?search=&category=&sort=` | Manage pizzas |
+| GET | `/api/admin/pizzas/{id}` | One pizza |
+| POST | `/api/admin/pizzas` | Add — **multipart** (Cloudinary) — US-004 |
+| POST | `/api/admin/pizzas/{id}` | Update — multipart, image optional. POST not PUT: multipart-on-PUT is unreliable — US-005 |
+| DELETE | `/api/admin/pizzas/{id}` | Delete — 409 if already ordered — US-006 |
+| GET · POST | `/api/admin/coupons` | List / create |
+| GET · PUT · DELETE | `/api/admin/coupons/{id}` | Read / update / delete |
+| GET | `/api/admin/customers?search=&sort=` | Manage customers — US-016 |
+| GET · PUT | `/api/admin/customers/{id}` | Read / update (never the password) |
+| GET | `/api/admin/orders?search=&status=&sort=` | Manage orders |
+| GET | `/api/admin/orders/{id}` | Detail, incl. `allowedNextStatuses` |
+| POST | `/api/admin/orders/{id}/status` | Transition — 409 if illegal — US-018 |
+| POST | `/api/admin/orders/bulk-status` | Bulk transition; partial success answers `messageType: "warning"` |
 
-### Admin only (`currentAdmin` session, enforced on `/admin/**` except `/admin/login`, `/admin/logout`)
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/admin` | Redirect to dashboard or login depending on session |
-| GET | `/admin/dashboard` | Dashboard stats |
-| GET | `/admin/logout` | Admin logout |
-| GET | `/admin/pizzas` | Manage pizzas — US-004–US-006 |
-| GET/POST | `/admin/pizzas/add` | Add pizza |
-| GET/POST | `/admin/pizzas/edit/{id}` | Edit pizza |
-| POST | `/admin/pizzas/delete/{id}` | Delete pizza |
-| GET | `/admin/coupons` | Manage coupons — US-012–US-014 |
-| GET/POST | `/admin/coupons/add` | Create coupon |
-| GET | `/admin/coupons/edit/{id}` | Edit coupon form |
-| POST | `/admin/coupons/update/{id}` | Update coupon |
-| POST | `/admin/coupons/delete/{id}` | Delete coupon |
-| GET | `/admin/customers` | View customers — US-015 |
-| GET | `/admin/customers/edit/{id}` | Edit customer form — US-016 |
-| POST | `/admin/customers/update/{id}` | Update customer |
-| GET | `/admin/orders` | View orders — US-017 |
-| GET | `/admin/orders/{id}` | Order detail |
-| POST | `/admin/orders/{id}/status` | Transition order status — US-018 |
+### Response shapes
+Mutations answer `{message, messageType, data}` — `messageType` is `success` / `warning` /
+`error`, the direct successor of the old flash attributes, and the client renders the same
+three Bootstrap alert styles from it.
+
+Errors answer `{status, error, message, fieldErrors?}`. `fieldErrors` is keyed by DTO
+property name, so a form renders `is-invalid` + `.invalid-feedback` per field exactly as
+Thymeleaf's `th:errors` did.
+
+Entities are never serialized: `Order.customer` is LAZY with `open-in-view=false`,
+`Cart`/`Order` hold bidirectional collections Jackson would recurse through, and
+`Customer.password` carries the BCrypt hash. `com.pizza.api.dto.ApiResponses` is the whole
+wire contract; `ApiMappers` is the only place entities are read for it.
 
 ---
 

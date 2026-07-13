@@ -22,6 +22,10 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
         if (session != null && SessionUtil.isAdminLoggedIn(session)) {
             return true;
         }
+        if (AuthChallenge.isApiRequest(request)) {
+            AuthChallenge.sendUnauthorized(response, "Admin login required.");
+            return false;
+        }
         response.sendRedirect(request.getContextPath() + "/admin/login");
         return false;
     }
