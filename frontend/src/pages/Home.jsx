@@ -19,8 +19,11 @@ export default function Home() {
                     <p className="lead mb-4">
                         Handcrafted pizzas baked to perfection and delivered to your door.
                     </p>
-                    <Link to="/pizzas" className="btn btn-warning btn-lg px-4 fw-semibold">
-                        <i className="bi bi-list-ul" /> Browse Our Menu
+                    <Link to="/pizzas" className="btn btn-warning btn-lg px-4 fw-semibold me-2">
+                        <i className="bi bi-list-ul" /> Browse Pizzas
+                    </Link>
+                    <Link to="/drinks" className="btn btn-light btn-lg px-4 fw-semibold">
+                        🥤 Browse Drinks
                     </Link>
                 </div>
             </header>

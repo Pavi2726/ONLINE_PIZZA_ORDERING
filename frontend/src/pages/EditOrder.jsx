@@ -59,7 +59,7 @@ export default function EditOrder() {
     }
 
     function removeItem(itemId) {
-        if (!window.confirm('Remove this pizza from the order?')) return;
+        if (!window.confirm('Remove this item from the order?')) return;
         mutate(() => orderApi.removeItem(orderId, itemId));
     }
 
@@ -107,7 +107,7 @@ export default function EditOrder() {
                             <table className="table table-bordered table-hover align-middle">
                                 <thead className="table-dark">
                                     <tr>
-                                        <th>Pizza</th>
+                                        <th>Item</th>
                                         <th className="text-center">Quantity</th>
                                         <th className="text-end">Price</th>
                                         <th className="text-end">Line Total</th>
@@ -117,7 +117,14 @@ export default function EditOrder() {
                                 <tbody>
                                     {order.items.map((item) => (
                                         <tr key={item.id}>
-                                            <td>{item.pizzaName}</td>
+                                            <td>
+                                                {item.itemType === 'DRINK' ? item.drinkName : item.pizzaName}
+                                                {item.itemType === 'DRINK' && (
+                                                    <span className="ms-2 badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
+                                                        🥤 Drink
+                                                    </span>
+                                                )}
+                                            </td>
                                             <td className="text-center">
                                                 <div className="d-flex justify-content-center align-items-center gap-2">
                                                     <button
@@ -230,6 +237,9 @@ export default function EditOrder() {
                                     <div className="mt-4 d-flex gap-2">
                                         <Link to={`/pizzas?orderId=${order.id}`} className="btn btn-primary">
                                             🍕 Add More Pizzas
+                                        </Link>
+                                        <Link to={`/drinks?orderId=${order.id}`} className="btn btn-info">
+                                            🥤 Add Drinks
                                         </Link>
                                         <SubmitButton pending={pending} className="btn btn-success">
                                             Update Order

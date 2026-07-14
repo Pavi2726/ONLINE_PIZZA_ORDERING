@@ -20,9 +20,16 @@ export const pizzas = {
     list: (params) => get(`/pizzas${query(params)}`),
 };
 
+export const drinks = {
+    list: (params) => get(`/drinks${query(params)}`),
+    get: (id) => get(`/drinks/${id}`),
+    categories: () => get('/drinks/categories'),
+};
+
 export const cart = {
     get: () => get('/cart'),
     addItem: (pizzaId) => post('/cart/items', { pizzaId }),
+    addDrink: (drinkId) => post('/cart/drinks', { drinkId }),
     removeItem: (cartItemId) => del(`/cart/items/${cartItemId}`),
     increase: (cartItemId) => post(`/cart/items/${cartItemId}/increase`),
     decrease: (cartItemId) => post(`/cart/items/${cartItemId}/decrease`),
@@ -39,6 +46,7 @@ export const orders = {
     reorder: (orderId) => post(`/orders/${orderId}/reorder`),
     updateDetails: (orderId, body) => put(`/orders/${orderId}`, body),
     addItem: (orderId, pizzaId, quantity = 1) => post(`/orders/${orderId}/items`, { pizzaId, quantity }),
+    addDrink: (orderId, drinkId, quantity = 1) => post(`/orders/${orderId}/drinks`, { drinkId, quantity }),
     increaseItem: (orderId, itemId) => post(`/orders/${orderId}/items/${itemId}/increase`),
     decreaseItem: (orderId, itemId) => post(`/orders/${orderId}/items/${itemId}/decrease`),
     removeItem: (orderId, itemId) => del(`/orders/${orderId}/items/${itemId}`),
@@ -56,6 +64,14 @@ export const admin = {
         create: (form) => postForm('/admin/pizzas', form),
         update: (id, form) => postForm(`/admin/pizzas/${id}`, form),
         remove: (id) => del(`/admin/pizzas/${id}`),
+    },
+
+    drinks: {
+        list: (params) => get(`/admin/drinks${query(params)}`),
+        get: (id) => get(`/admin/drinks/${id}`),
+        create: (form) => postForm('/admin/drinks', form),
+        update: (id, form) => postForm(`/admin/drinks/${id}`, form),
+        remove: (id) => del(`/admin/drinks/${id}`),
     },
 
     coupons: {

@@ -4,6 +4,7 @@ import com.pizza.api.dto.ApiResponses.AdminResponse;
 import com.pizza.api.dto.ApiResponses.CartItemResponse;
 import com.pizza.api.dto.ApiResponses.CouponResponse;
 import com.pizza.api.dto.ApiResponses.CustomerResponse;
+import com.pizza.api.dto.ApiResponses.DrinkResponse;
 import com.pizza.api.dto.ApiResponses.OrderItemResponse;
 import com.pizza.api.dto.ApiResponses.OrderResponse;
 import com.pizza.api.dto.ApiResponses.PizzaResponse;
@@ -11,6 +12,7 @@ import com.pizza.entity.Admin;
 import com.pizza.entity.CartItem;
 import com.pizza.entity.Coupon;
 import com.pizza.entity.Customer;
+import com.pizza.entity.Drink;
 import com.pizza.entity.Order;
 import com.pizza.entity.OrderItem;
 import com.pizza.entity.OrderStatus;
@@ -42,6 +44,18 @@ public final class ApiMappers {
 
     public static List<PizzaResponse> pizzas(List<Pizza> list) {
         return list.stream().map(ApiMappers::pizza).toList();
+    }
+
+    public static DrinkResponse drink(Drink d) {
+        if (d == null) {
+            return null;
+        }
+        return new DrinkResponse(d.getId(), d.getName(), d.getDescription(), d.getCategory(),
+                d.getPrice(), d.getImageUrl(), d.getSize(), d.isAvailable());
+    }
+
+    public static List<DrinkResponse> drinks(List<Drink> list) {
+        return list.stream().map(ApiMappers::drink).toList();
     }
 
     public static CouponResponse coupon(Coupon c) {
@@ -78,19 +92,49 @@ public final class ApiMappers {
 
     public static CartItemResponse cartItem(CartItem item) {
         Pizza pizza = item.getPizza();
-        BigDecimal unitPrice = pizza.getPrice();
-        return new CartItemResponse(item.getId(), pizza.getId(), pizza.getName(), pizza.getImageUrl(),
-                unitPrice, item.getQuantity(),
-                unitPrice.multiply(BigDecimal.valueOf(item.getQuantity())));
+        Drink drink = item.getDrink();
+        BigDecimal unitPrice = item.getUnitPrice();
+        if (pizza != null) {
+            return new CartItemResponse(
+                    item.getId(), "PIZZA",
+                    pizza.getId(), pizza.getName(), pizza.getImageUrl(),
+                    null, null, null, null, null,
+                    unitPrice, item.getQuantity(),
+                    unitPrice.multiply(BigDecimal.valueOf(item.getQuantity())));
+        } else {
+            return new CartItemResponse(
+                    item.getId(), "DRINK",
+                    null, null, null,
+                    drink.getId(), drink.getName(), drink.getImageUrl(),
+                    drink.getCategory(), drink.getSize(),
+                    unitPrice, item.getQuantity(),
+                    unitPrice.multiply(BigDecimal.valueOf(item.getQuantity())));
+        }
     }
 
     public static OrderItemResponse orderItem(OrderItem item) {
         Pizza pizza = item.getPizza();
-        return new OrderItemResponse(item.getId(),
-                pizza == null ? null : pizza.getId(),
-                pizza == null ? null : pizza.getName(),
-                pizza == null ? null : pizza.getImageUrl(),
-                item.getPrice(), item.getQuantity(), item.getLineTotal());
+        Drink drink = item.getDrink();
+        if (pizza != null) {
+            return new OrderItemResponse(
+                    item.getId(), "PIZZA",
+                    pizza.getId(), pizza.getName(), pizza.getImageUrl(),
+                    null, null, null,
+                    item.getPrice(), item.getQuantity(), item.getLineTotal());
+        } else if (drink != null) {
+            return new OrderItemResponse(
+                    item.getId(), "DRINK",
+                    null, null, null,
+                    drink.getId(), drink.getName(), drink.getImageUrl(),
+                    item.getPrice(), item.getQuantity(), item.getLineTotal());
+        } else {
+            // Fallback: deleted product
+            return new OrderItemResponse(
+                    item.getId(), "UNKNOWN",
+                    null, null, null,
+                    null, null, null,
+                    item.getPrice(), item.getQuantity(), item.getLineTotal());
+        }
     }
 
     /**

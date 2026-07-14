@@ -41,6 +41,9 @@ public class OrderApiController {
     public record AddItemRequest(Long pizzaId, Integer quantity) {
     }
 
+    public record AddDrinkItemRequest(Long drinkId, Integer quantity) {
+    }
+
     public record UpdateDetailsRequest(String deliveryAddress, String phone) {
     }
 
@@ -122,12 +125,22 @@ public class OrderApiController {
         return Envelope.success("Pizza added to the order successfully.", reload(orderId, customerId));
     }
 
+    @PostMapping("/{orderId}/drinks")
+    public Envelope<OrderResponse> addDrink(@PathVariable Long orderId,
+                                            @RequestBody AddDrinkItemRequest request,
+                                            HttpSession session) {
+        Long customerId = customer(session).getId();
+        int quantity = request.quantity() == null ? 1 : request.quantity();
+        orderService.addDrinkToOrder(orderId, request.drinkId(), quantity, customerId);
+        return Envelope.success("Drink added to the order successfully.", reload(orderId, customerId));
+    }
+
     @PostMapping("/{orderId}/items/{itemId}/increase")
     public Envelope<OrderResponse> increaseItem(@PathVariable Long orderId, @PathVariable Long itemId,
                                                 HttpSession session) {
         Long customerId = customer(session).getId();
         orderService.increaseItemQuantity(orderId, itemId, customerId);
-        return Envelope.success("Pizza quantity updated successfully.", reload(orderId, customerId));
+        return Envelope.success("Item quantity updated successfully.", reload(orderId, customerId));
     }
 
     @PostMapping("/{orderId}/items/{itemId}/decrease")
@@ -135,7 +148,7 @@ public class OrderApiController {
                                                 HttpSession session) {
         Long customerId = customer(session).getId();
         orderService.decreaseItemQuantity(orderId, itemId, customerId);
-        return Envelope.success("Pizza quantity updated successfully.", reload(orderId, customerId));
+        return Envelope.success("Item quantity updated successfully.", reload(orderId, customerId));
     }
 
     @DeleteMapping("/{orderId}/items/{itemId}")

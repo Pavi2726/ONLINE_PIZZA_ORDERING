@@ -11,6 +11,8 @@ const LINKS = [
     { to: '/admin/dashboard', icon: 'bi-speedometer2', label: 'Dashboard' },
     { to: '/admin/pizzas/add', icon: 'bi-plus-circle', label: 'Add Pizza' },
     { to: '/admin/pizzas', icon: 'bi-card-list', label: 'Manage Pizzas', end: true },
+    { to: '/admin/drinks/add', icon: 'bi-cup-straw', label: 'Add Drink' },
+    { to: '/admin/drinks', icon: 'bi-cup-hot', label: 'Manage Drinks', end: true },
     { to: '/admin/coupons', icon: 'bi-ticket-perforated', label: 'Manage Coupons', end: true },
     { to: '/admin/customers', icon: 'bi-people', label: 'Manage Customers', end: true },
     { to: '/admin/orders', icon: 'bi-receipt', label: 'Manage Orders', end: true },

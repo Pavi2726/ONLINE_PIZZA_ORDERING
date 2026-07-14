@@ -116,7 +116,7 @@ class OrderHistoryEditCancelIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(post("/api/orders/{orderId}/items/{itemId}/increase", orderId, itemId)
                         .session(session))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("Pizza quantity updated successfully."));
+                .andExpect(jsonPath("$.message").value("Item quantity updated successfully."));
 
         Order afterIncrease = orderRepository.findByIdWithDetails(orderId).orElseThrow();
         assertThat(afterIncrease.getOrderItems().get(0).getQuantity()).isEqualTo(2);

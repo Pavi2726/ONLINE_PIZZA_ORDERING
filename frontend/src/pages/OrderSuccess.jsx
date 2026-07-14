@@ -24,7 +24,7 @@ export default function OrderSuccess() {
                             <i className="bi bi-check-circle-fill text-success" style={{ fontSize: '4rem' }} />
                             <h2 className="fw-bold mt-3">Thank You for Your Order!</h2>
                             <p className="text-muted">
-                                Your delicious pizza is on its way to being prepared.
+                                Your order is on its way to being prepared.
                             </p>
 
                             <div className="text-start bg-light rounded p-4 mt-4">
@@ -38,23 +38,30 @@ export default function OrderSuccess() {
                                 <h5 className="mb-3">Ordered Items</h5>
 
                                 <table className="table table-bordered">
-                                    <thead className="table-light">
-                                        <tr>
-                                            <th>Pizza</th>
-                                            <th>Qty</th>
-                                            <th>Price</th>
-                                            <th>Total</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {order.items.map((item) => (
-                                            <tr key={item.id}>
-                                                <td>{item.pizzaName}</td>
-                                                <td>{item.quantity}</td>
-                                                <td>{money(item.price)}</td>
-                                                <td>{money(item.lineTotal)}</td>
+                                        <thead className="table-light">
+                                            <tr>
+                                                <th>Item</th>
+                                                <th>Qty</th>
+                                                <th>Price</th>
+                                                <th>Total</th>
                                             </tr>
-                                        ))}
+                                        </thead>
+                                        <tbody>
+                                            {order.items.map((item) => (
+                                                <tr key={item.id}>
+                                                    <td>
+                                                        {item.itemType === 'DRINK' ? item.drinkName : item.pizzaName}
+                                                        {item.itemType === 'DRINK' && (
+                                                            <span className="ms-1 badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
+                                                                🥤
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td>{item.quantity}</td>
+                                                    <td>{money(item.price)}</td>
+                                                    <td>{money(item.lineTotal)}</td>
+                                                </tr>
+                                            ))}
                                     </tbody>
                                 </table>
 
@@ -122,7 +129,10 @@ export default function OrderSuccess() {
 
                             <div className="d-flex gap-2 justify-content-center mt-4">
                                 <Link to="/pizzas" className="btn btn-danger">
-                                    <i className="bi bi-list-ul" /> Order More
+                                    <i className="bi bi-list-ul" /> More Pizzas
+                                </Link>
+                                <Link to="/drinks" className="btn btn-primary">
+                                    🥤 More Drinks
                                 </Link>
                                 <Link to="/" className="btn btn-outline-secondary">
                                     <i className="bi bi-house" /> Home

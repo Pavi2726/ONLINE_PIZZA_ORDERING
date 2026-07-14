@@ -1,4 +1,5 @@
 package com.pizza.service;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -16,11 +17,13 @@ import com.pizza.entity.Cart;
 import com.pizza.entity.CartItem;
 import com.pizza.entity.Coupon;
 import com.pizza.entity.Customer;
+import com.pizza.entity.Drink;
 import com.pizza.entity.Order;
 import com.pizza.entity.OrderItem;
 import com.pizza.entity.Pizza;
 import com.pizza.exception.ResourceNotFoundException;
 import com.pizza.repository.CouponRepository;
+import com.pizza.repository.DrinkRepository;
 import com.pizza.repository.OrderRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -39,11 +42,10 @@ public class OrderService {
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     private final OrderRepository orderRepository;
-  private final CartService cartService;
-private final PizzaService pizzaService;
+    private final CartService cartService;
+    private final PizzaService pizzaService;
+    private final DrinkRepository drinkRepository;
     private final CouponRepository couponRepository;
-
-
 
     /**
      * Places an order for the given customer.
@@ -53,86 +55,97 @@ private final PizzaService pizzaService;
      * @return the persisted order with totals and order number populated
      */
     @Transactional
-public Order placeOrder(OrderDTO dto, Customer customer) {
+    public Order placeOrder(OrderDTO dto, Customer customer) {
 
-    Cart cart = cartService.getCart(customer.getEmail());
+        Cart cart = cartService.getCart(customer.getEmail());
 
-    if (cart.getCartItems().isEmpty()) {
-        throw new IllegalStateException("Your cart is empty.");
-    }
-    BigDecimal subtotal = BigDecimal.ZERO;
+        if (cart.getCartItems().isEmpty()) {
+            throw new IllegalStateException("Your cart is empty.");
+        }
+        BigDecimal subtotal = BigDecimal.ZERO;
 
-for (CartItem item : cart.getCartItems()) {
-    subtotal = subtotal.add(item.getItemTotal());
-}
+        for (CartItem item : cart.getCartItems()) {
+            subtotal = subtotal.add(item.getItemTotal());
+        }
 
-BigDecimal discount = BigDecimal.ZERO;
-String couponCode = null;
-Integer discountPercentage = null;
+        BigDecimal discount = BigDecimal.ZERO;
+        String couponCode = null;
+        Integer discountPercentage = null;
 
-if (dto.getCouponCode() != null && !dto.getCouponCode().trim().isEmpty()) {
+        if (dto.getCouponCode() != null && !dto.getCouponCode().trim().isEmpty()) {
 
-    Coupon coupon = couponRepository
-            .findByCouponCode(dto.getCouponCode().trim().toUpperCase())
-            .orElseThrow(() ->
-                    new IllegalArgumentException("Invalid coupon code."));
+            Coupon coupon = couponRepository
+                    .findByCouponCode(dto.getCouponCode().trim().toUpperCase())
+                    .orElseThrow(() ->
+                            new IllegalArgumentException("Invalid coupon code."));
 
-    if (!coupon.isActive()) {
-        throw new IllegalArgumentException("Coupon is inactive.");
-    }
+            if (!coupon.isActive()) {
+                throw new IllegalArgumentException("Coupon is inactive.");
+            }
 
-    couponCode = coupon.getCouponCode();
-    discountPercentage = coupon.getDiscountPercentage();
+            couponCode = coupon.getCouponCode();
+            discountPercentage = coupon.getDiscountPercentage();
 
-    discount = subtotal
-            .multiply(BigDecimal.valueOf(discountPercentage))
-            .divide(BigDecimal.valueOf(100))
-            .setScale(2, RoundingMode.HALF_UP);
-}
+            discount = subtotal
+                    .multiply(BigDecimal.valueOf(discountPercentage))
+                    .divide(BigDecimal.valueOf(100))
+                    .setScale(2, RoundingMode.HALF_UP);
+        }
 
-BigDecimal discountedSubtotal = subtotal.subtract(discount);
+        BigDecimal discountedSubtotal = subtotal.subtract(discount);
 
-BigDecimal tax = discountedSubtotal
-        .multiply(TAX_RATE)
-        .setScale(2, RoundingMode.HALF_UP);
+        BigDecimal tax = discountedSubtotal
+                .multiply(TAX_RATE)
+                .setScale(2, RoundingMode.HALF_UP);
 
-BigDecimal total = discountedSubtotal
-        .add(tax)
-        .setScale(2, RoundingMode.HALF_UP);
+        BigDecimal total = discountedSubtotal
+                .add(tax)
+                .setScale(2, RoundingMode.HALF_UP);
 
-    // We will continue here in the next step
-    Order order = Order.builder()
-        .orderNumber(generateOrderNumber())
-        .customer(customer)
-        .subtotal(subtotal)
-        .discountAmount(discount)
-        .discountPercentage(discountPercentage)
-        .couponCode(couponCode)
-        .tax(tax)
-        .totalAmount(total)
-        .deliveryAddress(dto.getDeliveryAddress().trim())
-        .phone(dto.getPhone().trim())
-        .status(DEFAULT_STATUS)
-        .build();
+        Order order = Order.builder()
+                .orderNumber(generateOrderNumber())
+                .customer(customer)
+                .subtotal(subtotal)
+                .discountAmount(discount)
+                .discountPercentage(discountPercentage)
+                .couponCode(couponCode)
+                .tax(tax)
+                .totalAmount(total)
+                .deliveryAddress(dto.getDeliveryAddress().trim())
+                .phone(dto.getPhone().trim())
+                .status(DEFAULT_STATUS)
+                .build();
         order.setOrderTime(LocalDateTime.now());
+
         for (CartItem cartItem : cart.getCartItems()) {
+            if (cartItem.getPizza() != null) {
+                Pizza pizza = cartItem.getPizza();
+                OrderItem orderItem = OrderItem.builder()
+                        .pizza(pizza)
+                        .quantity(cartItem.getQuantity())
+                        .price(pizza.getPrice())
+                        .lineTotal(cartItem.getItemTotal())
+                        .build();
+                order.addOrderItem(orderItem);
+            } else if (cartItem.getDrink() != null) {
+                Drink drink = cartItem.getDrink();
+                OrderItem orderItem = OrderItem.builder()
+                        .drink(drink)
+                        .quantity(cartItem.getQuantity())
+                        .price(drink.getPrice())
+                        .lineTotal(cartItem.getItemTotal())
+                        .build();
+                order.addOrderItem(orderItem);
+            }
+        }
 
-    OrderItem orderItem = OrderItem.builder()
-            .pizza(cartItem.getPizza())
-            .quantity(cartItem.getQuantity())
-            .price(cartItem.getPizza().getPrice())
-            .lineTotal(cartItem.getItemTotal())
-            .build();
+        Order savedOrder = orderRepository.save(order);
 
-    order.addOrderItem(orderItem);
-}
-Order savedOrder = orderRepository.save(order);
+        cartService.clearCart(customer.getEmail());
 
-cartService.clearCart(customer.getEmail());
+        return savedOrder;
+    }
 
-return savedOrder;
-}
- 
     /** Finds an order by its public order number. */
     @Transactional(readOnly = true)
     public Order findByOrderNumber(String orderNumber) {
@@ -153,78 +166,77 @@ return savedOrder;
     }
 
     @Transactional(readOnly = true)
-public Order findOrderById(Long orderId, Long customerId) {
+    public Order findOrderById(Long orderId, Long customerId) {
+        return orderRepository
+                .findByIdAndCustomerId(orderId, customerId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Order not found"));
+    }
 
-    return orderRepository
-            .findByIdAndCustomerId(orderId, customerId)
-            .orElseThrow(() ->
-                    new ResourceNotFoundException("Order not found"));
-}
     @Transactional(readOnly = true)
     public List<Order> getOrderHistory(Long customerId) {
         return orderRepository.findAllByCustomerId(customerId);
-   }
-private void validateEditWindow(Order order) {
-
-    if (Duration.between(order.getOrderTime(), LocalDateTime.now()).toMinutes() >= 5) {
-        throw new IllegalStateException(
-                "The 5-minute update window has expired. Please reorder to make any changes.");
-    }
-}
-   
-   
-  @Transactional
-public void cancelOrder(Long orderId, Long customerId) {
-
-    Order order = orderRepository
-            .findByIdAndCustomerId(orderId, customerId)
-            .orElseThrow(() ->
-                    new ResourceNotFoundException("Order not found"));
-
-    if (!DEFAULT_STATUS.equals(order.getStatus())) {
-        throw new IllegalStateException("Only placed orders can be cancelled.");
     }
 
-    order.setStatus("CANCELLED");
+    private void validateEditWindow(Order order) {
+        if (Duration.between(order.getOrderTime(), LocalDateTime.now()).toMinutes() >= 5) {
+            throw new IllegalStateException(
+                    "The 5-minute update window has expired. Please reorder to make any changes.");
+        }
+    }
 
-    orderRepository.save(order);
-}
-    /**
-     * Generates a unique, human-friendly order number such as
-     * {@code ORD-20260625-4821}.
-     */
-    
+    @Transactional
+    public void cancelOrder(Long orderId, Long customerId) {
+
+        Order order = orderRepository
+                .findByIdAndCustomerId(orderId, customerId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Order not found"));
+
+        if (!DEFAULT_STATUS.equals(order.getStatus())) {
+            throw new IllegalStateException("Only placed orders can be cancelled.");
+        }
+
+        order.setStatus("CANCELLED");
+
+        orderRepository.save(order);
+    }
+
     private void recalculateOrderTotals(Order order) {
 
-    BigDecimal subtotal = BigDecimal.ZERO;
+        BigDecimal subtotal = BigDecimal.ZERO;
 
-    for (OrderItem item : order.getOrderItems()) {
-        subtotal = subtotal.add(item.getLineTotal());
+        for (OrderItem item : order.getOrderItems()) {
+            subtotal = subtotal.add(item.getLineTotal());
+        }
+
+        BigDecimal discount = BigDecimal.ZERO;
+
+        if (order.getDiscountPercentage() != null) {
+            discount = subtotal
+                    .multiply(BigDecimal.valueOf(order.getDiscountPercentage()))
+                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        }
+
+        BigDecimal discountedSubtotal = subtotal.subtract(discount);
+
+        BigDecimal tax = discountedSubtotal
+                .multiply(TAX_RATE)
+                .setScale(2, RoundingMode.HALF_UP);
+
+        BigDecimal total = discountedSubtotal
+                .add(tax)
+                .setScale(2, RoundingMode.HALF_UP);
+
+        order.setSubtotal(subtotal);
+        order.setDiscountAmount(discount);
+        order.setTax(tax);
+        order.setTotalAmount(total);
     }
 
-    BigDecimal discount = BigDecimal.ZERO;
-
-    if (order.getDiscountPercentage() != null) {
-        discount = subtotal
-                .multiply(BigDecimal.valueOf(order.getDiscountPercentage()))
-                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-    }
-
-    BigDecimal discountedSubtotal = subtotal.subtract(discount);
-
-    BigDecimal tax = discountedSubtotal
-            .multiply(TAX_RATE)
-            .setScale(2, RoundingMode.HALF_UP);
-
-    BigDecimal total = discountedSubtotal
-            .add(tax)
-            .setScale(2, RoundingMode.HALF_UP);
-
-    order.setSubtotal(subtotal);
-    order.setDiscountAmount(discount);
-    order.setTax(tax);
-    order.setTotalAmount(total);
-}
+    /**
+     * Generates a unique, human-friendly order number such as {@code ORD-20260625-4821}.
+     */
     private String generateOrderNumber() {
         String datePart = LocalDate.now().format(DATE_FMT);
         String candidate;
@@ -234,229 +246,256 @@ public void cancelOrder(Long orderId, Long customerId) {
         } while (orderRepository.existsByOrderNumber(candidate));
         return candidate;
     }
-@Transactional
-public void increaseItemQuantity(Long orderId,
-                                 Long itemId,
-                                 Long customerId) {
 
-    Order order = orderRepository
-            .findByIdAndCustomerId(orderId, customerId)
-            .orElseThrow(() ->
-                    new ResourceNotFoundException("Order not found"));
-validateEditWindow(order);
-    OrderItem orderItem = order.getOrderItems()
-            .stream()
-            .filter(item -> item.getId().equals(itemId))
-            .findFirst()
-            .orElseThrow(() ->
-                    new ResourceNotFoundException("Order item not found"));
+    @Transactional
+    public void increaseItemQuantity(Long orderId, Long itemId, Long customerId) {
 
-    // Increase quantity
-    orderItem.setQuantity(orderItem.getQuantity() + 1);
+        Order order = orderRepository
+                .findByIdAndCustomerId(orderId, customerId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Order not found"));
+        validateEditWindow(order);
 
-    // Update line total
-    orderItem.setLineTotal(
-            orderItem.getPrice()
-                    .multiply(BigDecimal.valueOf(orderItem.getQuantity()))
-                    .setScale(2, RoundingMode.HALF_UP)
-    );
+        OrderItem orderItem = order.getOrderItems()
+                .stream()
+                .filter(item -> item.getId().equals(itemId))
+                .findFirst()
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Order item not found"));
 
-    // Recalculate order totals
-    recalculateOrderTotals(order);
+        orderItem.setQuantity(orderItem.getQuantity() + 1);
 
-    // Save changes
-    orderRepository.save(order);
-}@Transactional
-public void decreaseItemQuantity(Long orderId,
-                                 Long itemId,
-                                 Long customerId) {
+        orderItem.setLineTotal(
+                orderItem.getPrice()
+                        .multiply(BigDecimal.valueOf(orderItem.getQuantity()))
+                        .setScale(2, RoundingMode.HALF_UP)
+        );
 
-    Order order = orderRepository
-            .findByIdAndCustomerId(orderId, customerId)
-            .orElseThrow(() ->
-                    new ResourceNotFoundException("Order not found"));
-validateEditWindow(order);
-    OrderItem orderItem = order.getOrderItems()
-            .stream()
-            .filter(item -> item.getId().equals(itemId))
-            .findFirst()
-            .orElseThrow(() ->
-                    new ResourceNotFoundException("Order item not found"));
+        recalculateOrderTotals(order);
 
-    // Do not decrease below 1
-    if (orderItem.getQuantity() <= 1) {
-        return;
+        orderRepository.save(order);
     }
 
-    // Decrease quantity
-    orderItem.setQuantity(orderItem.getQuantity() - 1);
+    @Transactional
+    public void decreaseItemQuantity(Long orderId, Long itemId, Long customerId) {
 
-    // Update line total
-    orderItem.setLineTotal(
-            orderItem.getPrice()
-                    .multiply(BigDecimal.valueOf(orderItem.getQuantity()))
-                    .setScale(2, RoundingMode.HALF_UP)
-    );
+        Order order = orderRepository
+                .findByIdAndCustomerId(orderId, customerId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Order not found"));
+        validateEditWindow(order);
 
-    // Recalculate order totals
-    recalculateOrderTotals(order);
+        OrderItem orderItem = order.getOrderItems()
+                .stream()
+                .filter(item -> item.getId().equals(itemId))
+                .findFirst()
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Order item not found"));
 
-    // Save changes
-    orderRepository.save(order);
-}
-@Transactional
-public void removeOrderItem(Long orderId,
-                            Long itemId,
-                            Long customerId) {
-
-    Order order = orderRepository
-            .findByIdAndCustomerId(orderId, customerId)
-            .orElseThrow(() ->
-                    new ResourceNotFoundException("Order not found"));
-validateEditWindow(order);
-    // Prevent removing the last pizza
-    if (order.getOrderItems().size() <= 1) {
-        return;
-    }
-
-    OrderItem orderItem = order.getOrderItems()
-            .stream()
-            .filter(item -> item.getId().equals(itemId))
-            .findFirst()
-            .orElseThrow(() ->
-                    new ResourceNotFoundException("Order item not found"));
-
-    // Remove the item
-    order.removeOrderItem(orderItem);
-
-    // Recalculate order totals
-    recalculateOrderTotals(order);
-
-    // Save changes
-    orderRepository.save(order);
-}
-
-@Transactional
-public void addPizzaToOrder(Long orderId,
-                            Long pizzaId,
-                            Integer quantity,
-                            Long customerId) {
-
-    Order order = findOrderById(orderId, customerId);
-    validateEditWindow(order);
-                            
-    Pizza pizza = pizzaService.findById(pizzaId);
-                                if (!pizza.isAvailable()) {
-    throw new IllegalStateException("Pizza is currently unavailable.");
-}
-    OrderItem existingItem = null;
-
-    for (OrderItem item : order.getOrderItems()) {
-
-        if (item.getPizza().getId().equals(pizzaId)) {
-            existingItem = item;
-            break;
+        if (orderItem.getQuantity() <= 1) {
+            return;
         }
+
+        orderItem.setQuantity(orderItem.getQuantity() - 1);
+
+        orderItem.setLineTotal(
+                orderItem.getPrice()
+                        .multiply(BigDecimal.valueOf(orderItem.getQuantity()))
+                        .setScale(2, RoundingMode.HALF_UP)
+        );
+
+        recalculateOrderTotals(order);
+
+        orderRepository.save(order);
     }
 
-    if (existingItem != null) {
+    @Transactional
+    public void removeOrderItem(Long orderId, Long itemId, Long customerId) {
 
-        existingItem.setQuantity(
-                existingItem.getQuantity() + quantity);
+        Order order = orderRepository
+                .findByIdAndCustomerId(orderId, customerId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Order not found"));
+        validateEditWindow(order);
 
-        existingItem.setLineTotal(
-                existingItem.getPrice()
-                        .multiply(BigDecimal.valueOf(existingItem.getQuantity()))
-                    .setScale(2, RoundingMode.HALF_UP));
-    }
-    else {
-
-        OrderItem newItem = new OrderItem();
-
-        newItem.setOrder(order);
-        newItem.setPizza(pizza);
-        newItem.setQuantity(quantity);
-        newItem.setPrice(pizza.getPrice());
-
-        newItem.setLineTotal(
-                pizza.getPrice()
-                        .multiply(BigDecimal.valueOf(quantity))
-                    .setScale(2, RoundingMode.HALF_UP));
-
-        order.getOrderItems().add(newItem);
-    }
-
-    recalculateOrderTotals(order);
-
-    orderRepository.save(order);
-}
-/**
- * Result of a reorder attempt: how many order lines were appended to the
- * customer's cart, which pizzas were skipped because they are no longer
- * available, and which pizzas had their added quantity clamped at the
- * per-item cart cap.
- */
-public record ReorderResult(int addedCount, List<String> skippedPizzaNames, List<String> cappedPizzaNames) {
-
-    /** Concise counts-only summary for the flash message - never enumerates pizza names. */
-    public String summaryMessage() {
-        StringBuilder message = new StringBuilder(addedCount + " item(s) added to your cart.");
-        if (!skippedPizzaNames.isEmpty()) {
-            message.append(" ").append(skippedPizzaNames.size()).append(" unavailable, skipped.");
+        if (order.getOrderItems().size() <= 1) {
+            return;
         }
-        if (!cappedPizzaNames.isEmpty()) {
-            message.append(" ").append(cappedPizzaNames.size()).append(" capped at maximum quantity.");
-        }
-        return message.toString();
+
+        OrderItem orderItem = order.getOrderItems()
+                .stream()
+                .filter(item -> item.getId().equals(itemId))
+                .findFirst()
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Order item not found"));
+
+        order.removeOrderItem(orderItem);
+
+        recalculateOrderTotals(order);
+
+        orderRepository.save(order);
     }
-}
 
-/**
- * Reorders a past order: every still-available pizza is appended to the
- * customer's existing cart (never clears it first) via {@link
- * CartService#addPizzaToCartClamped(String, Long, int)}. Unavailable pizzas
- * are skipped rather than aborting the whole reorder; lines that would
- * exceed the per-item cart cap are clamped rather than throwing.
- */
-@Transactional
-public ReorderResult reorder(Long orderId, Long customerId) {
-    Order order = findOrderById(orderId, customerId);
+    @Transactional
+    public void addPizzaToOrder(Long orderId, Long pizzaId, Integer quantity, Long customerId) {
 
-    int added = 0;
-    List<String> skipped = new ArrayList<>();
-    List<String> capped = new ArrayList<>();
+        Order order = findOrderById(orderId, customerId);
+        validateEditWindow(order);
 
-    for (OrderItem item : order.getOrderItems()) {
-        Pizza pizza = item.getPizza();
+        Pizza pizza = pizzaService.findById(pizzaId);
         if (!pizza.isAvailable()) {
-            skipped.add(pizza.getName());
-            continue;
+            throw new IllegalStateException("Pizza is currently unavailable.");
         }
-        boolean wasClamped = cartService.addPizzaToCartClamped(
-                order.getCustomer().getEmail(), pizza.getId(), item.getQuantity());
-        if (wasClamped) {
-            capped.add(pizza.getName());
+
+        OrderItem existingItem = order.getOrderItems()
+                .stream()
+                .filter(item -> item.getPizza() != null && item.getPizza().getId().equals(pizzaId))
+                .findFirst()
+                .orElse(null);
+
+        if (existingItem != null) {
+            existingItem.setQuantity(existingItem.getQuantity() + quantity);
+            existingItem.setLineTotal(
+                    existingItem.getPrice()
+                            .multiply(BigDecimal.valueOf(existingItem.getQuantity()))
+                            .setScale(2, RoundingMode.HALF_UP));
+        } else {
+            OrderItem newItem = new OrderItem();
+            newItem.setOrder(order);
+            newItem.setPizza(pizza);
+            newItem.setQuantity(quantity);
+            newItem.setPrice(pizza.getPrice());
+            newItem.setLineTotal(
+                    pizza.getPrice()
+                            .multiply(BigDecimal.valueOf(quantity))
+                            .setScale(2, RoundingMode.HALF_UP));
+            order.getOrderItems().add(newItem);
         }
-        added++;
+
+        recalculateOrderTotals(order);
+
+        orderRepository.save(order);
     }
 
-    return new ReorderResult(added, skipped, capped);
-}
+    @Transactional
+    public void addDrinkToOrder(Long orderId, Long drinkId, Integer quantity, Long customerId) {
 
-@Transactional
-public void updateOrderDetails(Long orderId,
-                               String deliveryAddress,
-                               String phone,
-                               Long customerId) {
+        Order order = findOrderById(orderId, customerId);
+        validateEditWindow(order);
 
-    Order order = orderRepository
-            .findByIdAndCustomerId(orderId, customerId)
-            .orElseThrow(() ->
-                    new ResourceNotFoundException("Order not found"));
-validateEditWindow(order);
-    order.setDeliveryAddress(deliveryAddress.trim());
-    order.setPhone(phone.trim());
+        Drink drink = drinkRepository.findById(drinkId)
+                .orElseThrow(() -> new ResourceNotFoundException("Drink not found: " + drinkId));
 
-    orderRepository.save(order);
-}
+        if (!drink.isAvailable()) {
+            throw new IllegalStateException("Drink is currently unavailable.");
+        }
+
+        OrderItem existingItem = order.getOrderItems()
+                .stream()
+                .filter(item -> item.getDrink() != null && item.getDrink().getId().equals(drinkId))
+                .findFirst()
+                .orElse(null);
+
+        if (existingItem != null) {
+            existingItem.setQuantity(existingItem.getQuantity() + quantity);
+            existingItem.setLineTotal(
+                    existingItem.getPrice()
+                            .multiply(BigDecimal.valueOf(existingItem.getQuantity()))
+                            .setScale(2, RoundingMode.HALF_UP));
+        } else {
+            OrderItem newItem = new OrderItem();
+            newItem.setOrder(order);
+            newItem.setDrink(drink);
+            newItem.setQuantity(quantity);
+            newItem.setPrice(drink.getPrice());
+            newItem.setLineTotal(
+                    drink.getPrice()
+                            .multiply(BigDecimal.valueOf(quantity))
+                            .setScale(2, RoundingMode.HALF_UP));
+            order.getOrderItems().add(newItem);
+        }
+
+        recalculateOrderTotals(order);
+
+        orderRepository.save(order);
+    }
+
+    /**
+     * Result of a reorder attempt: how many order lines were added to the customer's
+     * cart, which items were skipped because they are unavailable, and which had their
+     * added quantity clamped at the per-item cart cap.
+     */
+    public record ReorderResult(int addedCount, List<String> skippedNames, List<String> cappedNames) {
+
+        /** Concise counts-only summary for the flash message. */
+        public String summaryMessage() {
+            StringBuilder message = new StringBuilder(addedCount + " item(s) added to your cart.");
+            if (!skippedNames.isEmpty()) {
+                message.append(" ").append(skippedNames.size()).append(" unavailable, skipped.");
+            }
+            if (!cappedNames.isEmpty()) {
+                message.append(" ").append(cappedNames.size()).append(" capped at maximum quantity.");
+            }
+            return message.toString();
+        }
+    }
+
+    /**
+     * Reorders a past order: every still-available pizza/drink is appended to the
+     * customer's existing cart (never clears it first). Unavailable items are skipped
+     * rather than aborting the whole reorder; lines that would exceed the per-item cap
+     * are clamped rather than throwing.
+     */
+    @Transactional
+    public ReorderResult reorder(Long orderId, Long customerId) {
+        Order order = findOrderById(orderId, customerId);
+
+        int added = 0;
+        List<String> skipped = new ArrayList<>();
+        List<String> capped = new ArrayList<>();
+
+        for (OrderItem item : order.getOrderItems()) {
+            if (item.getPizza() != null) {
+                Pizza pizza = item.getPizza();
+                if (!pizza.isAvailable()) {
+                    skipped.add(pizza.getName());
+                    continue;
+                }
+                boolean wasClamped = cartService.addPizzaToCartClamped(
+                        order.getCustomer().getEmail(), pizza.getId(), item.getQuantity());
+                if (wasClamped) {
+                    capped.add(pizza.getName());
+                }
+                added++;
+            } else if (item.getDrink() != null) {
+                Drink drink = item.getDrink();
+                if (!drink.isAvailable()) {
+                    skipped.add(drink.getName());
+                    continue;
+                }
+                boolean wasClamped = cartService.addDrinkToCartClamped(
+                        order.getCustomer().getEmail(), drink.getId(), item.getQuantity());
+                if (wasClamped) {
+                    capped.add(drink.getName());
+                }
+                added++;
+            }
+        }
+
+        return new ReorderResult(added, skipped, capped);
+    }
+
+    @Transactional
+    public void updateOrderDetails(Long orderId, String deliveryAddress, String phone, Long customerId) {
+
+        Order order = orderRepository
+                .findByIdAndCustomerId(orderId, customerId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Order not found"));
+        validateEditWindow(order);
+        order.setDeliveryAddress(deliveryAddress.trim());
+        order.setPhone(phone.trim());
+
+        orderRepository.save(order);
+    }
 }

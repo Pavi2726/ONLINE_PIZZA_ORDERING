@@ -74,7 +74,7 @@ export default function OrderHistory() {
                                     <table className="table table-bordered table-sm">
                                         <thead className="table-light">
                                             <tr>
-                                                <th>Pizza</th>
+                                                <th>Item</th>
                                                 <th>Qty</th>
                                                 <th>Price</th>
                                                 <th>Total</th>
@@ -83,7 +83,14 @@ export default function OrderHistory() {
                                         <tbody>
                                             {order.items.map((item) => (
                                                 <tr key={item.id}>
-                                                    <td>{item.pizzaName}</td>
+                                                    <td>
+                                                        {item.itemType === 'DRINK' ? item.drinkName : item.pizzaName}
+                                                        {item.itemType === 'DRINK' && (
+                                                            <span className="ms-1 badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
+                                                                🥤
+                                                            </span>
+                                                        )}
+                                                    </td>
                                                     <td>{item.quantity}</td>
                                                     <td>{money(item.price)}</td>
                                                     <td>{money(item.lineTotal)}</td>

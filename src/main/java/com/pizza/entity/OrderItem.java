@@ -34,9 +34,13 @@ public class OrderItem {
     @JoinColumn(name = "order_id", nullable = false)
     private Order order;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "pizza_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "pizza_id", nullable = true)
     private Pizza pizza;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "drink_id", nullable = true)
+    private Drink drink;
 
     @Column(nullable = false)
     private Integer quantity;

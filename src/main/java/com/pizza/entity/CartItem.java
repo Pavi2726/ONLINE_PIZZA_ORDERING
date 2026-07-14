@@ -38,7 +38,22 @@ public class CartItem {
     @JoinColumn(name = "pizza_id")
     private Pizza pizza;
 
+    @ManyToOne
+    @JoinColumn(name = "drink_id")
+    private Drink drink;
+
     public BigDecimal getItemTotal() {
-        return pizza.getPrice().multiply(BigDecimal.valueOf(quantity));
+        if (pizza != null) {
+            return pizza.getPrice().multiply(BigDecimal.valueOf(quantity));
+        } else if (drink != null) {
+            return drink.getPrice().multiply(BigDecimal.valueOf(quantity));
+        }
+        return BigDecimal.ZERO;
+    }
+
+    public BigDecimal getUnitPrice() {
+        if (pizza != null) return pizza.getPrice();
+        if (drink != null) return drink.getPrice();
+        return BigDecimal.ZERO;
     }
 }

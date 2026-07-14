@@ -66,7 +66,7 @@ export default function Cart() {
                     <table className="table table-bordered align-middle">
                         <thead className="table-dark">
                             <tr>
-                                <th>Pizza</th>
+                                <th>Item</th>
                                 <th>Price</th>
                                 <th>Quantity</th>
                                 <th>Total</th>
@@ -76,7 +76,18 @@ export default function Cart() {
                         <tbody>
                             {items.map((item) => (
                                 <tr key={item.id}>
-                                    <td>{item.pizzaName}</td>
+                                    <td>
+                                        <div>
+                                            <span className="fw-semibold">
+                                                {item.itemType === 'DRINK' ? item.drinkName : item.pizzaName}
+                                            </span>
+                                            {item.itemType === 'DRINK' && (
+                                                <span className="ms-2 badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
+                                                    🥤 Drink
+                                                </span>
+                                            )}
+                                        </div>
+                                    </td>
                                     <td>{money(item.unitPrice)}</td>
                                     <td>
                                         <div className="d-flex align-items-center gap-2">

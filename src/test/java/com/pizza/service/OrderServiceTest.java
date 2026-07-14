@@ -275,8 +275,8 @@ class OrderServiceTest {
         OrderService.ReorderResult result = orderService.reorder(30L, 1L);
 
         assertThat(result.addedCount()).isEqualTo(2);
-        assertThat(result.skippedPizzaNames()).isEmpty();
-        assertThat(result.cappedPizzaNames()).isEmpty();
+        assertThat(result.skippedNames()).isEmpty();
+        assertThat(result.cappedNames()).isEmpty();
         verify(cartService).addPizzaToCartClamped(customer.getEmail(), 1L, 2);
         verify(cartService).addPizzaToCartClamped(customer.getEmail(), 2L, 1);
     }
@@ -299,8 +299,8 @@ class OrderServiceTest {
         OrderService.ReorderResult result = orderService.reorder(31L, 1L);
 
         assertThat(result.addedCount()).isEqualTo(1);
-        assertThat(result.skippedPizzaNames()).containsExactly("Retired Special");
-        assertThat(result.cappedPizzaNames()).isEmpty();
+        assertThat(result.skippedNames()).containsExactly("Retired Special");
+        assertThat(result.cappedNames()).isEmpty();
         verify(cartService, never()).addPizzaToCartClamped(anyString(), eq(2L), anyInt());
     }
 
@@ -319,8 +319,8 @@ class OrderServiceTest {
         OrderService.ReorderResult result = orderService.reorder(32L, 1L);
 
         assertThat(result.addedCount()).isEqualTo(1);
-        assertThat(result.skippedPizzaNames()).isEmpty();
-        assertThat(result.cappedPizzaNames()).containsExactly("Margherita");
+        assertThat(result.skippedNames()).isEmpty();
+        assertThat(result.cappedNames()).containsExactly("Margherita");
     }
 
     @Test

@@ -59,6 +59,20 @@ public final class ApiResponses {
     public record PizzaListResponse(List<PizzaResponse> pizzas, List<String> categories) {
     }
 
+    public record DrinkResponse(
+            Long id,
+            String name,
+            String description,
+            String category,
+            BigDecimal price,
+            String imageUrl,
+            String size,
+            boolean available) {
+    }
+
+    public record DrinkListResponse(List<DrinkResponse> drinks, List<String> categories) {
+    }
+
     public record CouponResponse(
             Long id,
             String couponCode,
@@ -67,11 +81,21 @@ public final class ApiResponses {
             LocalDateTime createdAt) {
     }
 
+    /**
+     * Represents a single line in the cart. Either pizza or drink fields will be populated
+     * (the other will be null). {@code itemType} is "PIZZA" or "DRINK".
+     */
     public record CartItemResponse(
             Long id,
+            String itemType,
             Long pizzaId,
             String pizzaName,
             String pizzaImageUrl,
+            Long drinkId,
+            String drinkName,
+            String drinkImageUrl,
+            String drinkCategory,
+            String drinkSize,
             BigDecimal unitPrice,
             int quantity,
             BigDecimal itemTotal) {
@@ -87,11 +111,19 @@ public final class ApiResponses {
             int itemCount) {
     }
 
+    /**
+     * Represents a single line in an order. Either pizza or drink fields will be populated.
+     * {@code itemType} is "PIZZA" or "DRINK".
+     */
     public record OrderItemResponse(
             Long id,
+            String itemType,
             Long pizzaId,
             String pizzaName,
             String pizzaImageUrl,
+            Long drinkId,
+            String drinkName,
+            String drinkImageUrl,
             BigDecimal price,
             Integer quantity,
             BigDecimal lineTotal) {
@@ -147,7 +179,8 @@ public final class ApiResponses {
     public record MeResponse(CustomerResponse customer, AdminResponse admin, int cartItemCount) {
     }
 
-    public record DashboardStatsResponse(long totalPizzas, long availablePizzas, long outOfStockPizzas) {
+    public record DashboardStatsResponse(long totalPizzas, long availablePizzas, long outOfStockPizzas,
+                                          long totalDrinks, long availableDrinks, long outOfStockDrinks) {
     }
 
     public record LoginResponse(CustomerResponse customer, int cartItemCount) {

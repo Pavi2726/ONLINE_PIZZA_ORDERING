@@ -20,6 +20,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             FROM Order o
             LEFT JOIN FETCH o.orderItems oi
             LEFT JOIN FETCH oi.pizza
+            LEFT JOIN FETCH oi.drink
             JOIN FETCH o.customer
             WHERE o.orderNumber = :orderNumber
             AND o.customer.id = :customerId
@@ -33,6 +34,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             FROM Order o
             LEFT JOIN FETCH o.orderItems oi
             LEFT JOIN FETCH oi.pizza
+            LEFT JOIN FETCH oi.drink
             WHERE o.customer.id = :customerId
             ORDER BY o.createdAt DESC
             """)
@@ -44,6 +46,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             FROM Order o
             LEFT JOIN FETCH o.orderItems oi
             LEFT JOIN FETCH oi.pizza
+            LEFT JOIN FETCH oi.drink
             JOIN FETCH o.customer
             WHERE o.id = :orderId
             AND o.customer.id = :customerId
@@ -59,6 +62,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             FROM Order o
             LEFT JOIN FETCH o.orderItems oi
             LEFT JOIN FETCH oi.pizza
+            LEFT JOIN FETCH oi.drink
             JOIN FETCH o.customer
             ORDER BY o.createdAt DESC
             """)
@@ -69,6 +73,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             FROM Order o
             LEFT JOIN FETCH o.orderItems oi
             LEFT JOIN FETCH oi.pizza
+            LEFT JOIN FETCH oi.drink
             JOIN FETCH o.customer
             WHERE o.id = :orderId
             """)
@@ -79,6 +84,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             FROM Order o
             LEFT JOIN FETCH o.orderItems oi
             LEFT JOIN FETCH oi.pizza
+            LEFT JOIN FETCH oi.drink
             JOIN FETCH o.customer
             WHERE LOWER(o.orderNumber) LIKE LOWER(CONCAT('%', :term, '%'))
                OR LOWER(o.customer.firstName) LIKE LOWER(CONCAT('%', :term, '%'))
@@ -92,6 +98,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             FROM Order o
             LEFT JOIN FETCH o.orderItems oi
             LEFT JOIN FETCH oi.pizza
+            LEFT JOIN FETCH oi.drink
             JOIN FETCH o.customer
             WHERE o.status = :status
             ORDER BY o.createdAt DESC
@@ -103,6 +110,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             FROM Order o
             LEFT JOIN FETCH o.orderItems oi
             LEFT JOIN FETCH oi.pizza
+            LEFT JOIN FETCH oi.drink
             JOIN FETCH o.customer
             WHERE o.status = :status
               AND (LOWER(o.orderNumber) LIKE LOWER(CONCAT('%', :term, '%'))

@@ -6,6 +6,7 @@ import com.pizza.api.dto.ApiResponses.Envelope;
 import com.pizza.dto.LoginRequest;
 import com.pizza.entity.Admin;
 import com.pizza.service.AdminService;
+import com.pizza.service.DrinkService;
 import com.pizza.service.PizzaService;
 import com.pizza.util.SessionUtil;
 import jakarta.servlet.http.HttpSession;
@@ -25,6 +26,7 @@ public class AdminApiController {
 
     private final AdminService adminService;
     private final PizzaService pizzaService;
+    private final DrinkService drinkService;
 
     @PostMapping("/login")
     public Envelope<AdminResponse> login(@Valid @RequestBody LoginRequest request, HttpSession session) {
@@ -44,6 +46,9 @@ public class AdminApiController {
         return new DashboardStatsResponse(
                 pizzaService.countAll(),
                 pizzaService.countAvailable(),
-                pizzaService.countOutOfStock());
+                pizzaService.countOutOfStock(),
+                drinkService.countAll(),
+                drinkService.countAvailable(),
+                drinkService.countOutOfStock());
     }
 }

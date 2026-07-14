@@ -28,7 +28,7 @@ class SpaForwardingTest extends AbstractIntegrationTest {
      * far enough to ask who the visitor is.
      */
     @ParameterizedTest
-    @ValueSource(strings = {"/pizzas", "/cart", "/orders/history", "/admin/orders/5", "/admin/login"})
+    @ValueSource(strings = {"/pizzas", "/drinks", "/cart", "/orders/history", "/admin/orders/5", "/admin/login"})
     void clientSideRoutes_serveTheSpaShell(String path) throws Exception {
         mockMvc.perform(get(path))
                 .andExpect(status().isOk())

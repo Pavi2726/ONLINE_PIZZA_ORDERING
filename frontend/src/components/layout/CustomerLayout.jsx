@@ -49,6 +49,11 @@ function Navbar() {
                                 <i className="bi bi-list-ul" /> Pizzas
                             </NavLink>
                         </li>
+                        <li className="nav-item">
+                            <NavLink className="nav-link" to="/drinks">
+                                🥤 Drinks
+                            </NavLink>
+                        </li>
 
                         {customer ? (
                             <>

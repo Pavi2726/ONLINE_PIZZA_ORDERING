@@ -11,6 +11,7 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import PizzaList from './pages/PizzaList';
+import DrinkList from './pages/DrinkList';
 import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
 import OrderSuccess from './pages/OrderSuccess';
@@ -22,6 +23,8 @@ import AdminLogin from './pages/admin/AdminLogin';
 import Dashboard from './pages/admin/Dashboard';
 import AdminPizzaList from './pages/admin/AdminPizzaList';
 import PizzaForm from './pages/admin/PizzaForm';
+import AdminDrinkList from './pages/admin/AdminDrinkList';
+import DrinkForm from './pages/admin/DrinkForm';
 import CouponList from './pages/admin/CouponList';
 import CouponForm from './pages/admin/CouponForm';
 import CustomerList from './pages/admin/CustomerList';
@@ -62,6 +65,7 @@ export default function App() {
                     <Route path="/login" element={<Login />} />
                     <Route path="/register" element={<Register />} />
                     <Route path="/pizzas" element={<PizzaList />} />
+                    <Route path="/drinks" element={<DrinkList />} />
 
                     <Route element={<RequireCustomer />}>
                         <Route path="/cart" element={<Cart />} />
@@ -84,6 +88,9 @@ export default function App() {
                         <Route path="/admin/pizzas" element={<AdminPizzaList />} />
                         <Route path="/admin/pizzas/add" element={<PizzaForm />} />
                         <Route path="/admin/pizzas/edit/:id" element={<PizzaForm />} />
+                        <Route path="/admin/drinks" element={<AdminDrinkList />} />
+                        <Route path="/admin/drinks/add" element={<DrinkForm />} />
+                        <Route path="/admin/drinks/edit/:id" element={<DrinkForm />} />
                         <Route path="/admin/coupons" element={<CouponList />} />
                         <Route path="/admin/coupons/add" element={<CouponForm />} />
                         <Route path="/admin/coupons/edit/:id" element={<CouponForm />} />

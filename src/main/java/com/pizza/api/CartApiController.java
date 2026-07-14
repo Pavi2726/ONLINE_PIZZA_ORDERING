@@ -38,6 +38,9 @@ public class CartApiController {
     public record AddItemRequest(Long pizzaId) {
     }
 
+    public record AddDrinkRequest(Long drinkId) {
+    }
+
     public record ApplyCouponRequest(String couponCode) {
     }
 
@@ -50,6 +53,12 @@ public class CartApiController {
     public Envelope<CartResponse> addItem(@RequestBody AddItemRequest request, HttpSession session) {
         cartService.addPizzaToCart(customer(session).getEmail(), request.pizzaId());
         return Envelope.success("Pizza added to cart successfully!", currentCart(session));
+    }
+
+    @PostMapping("/drinks")
+    public Envelope<CartResponse> addDrink(@RequestBody AddDrinkRequest request, HttpSession session) {
+        cartService.addDrinkToCart(customer(session).getEmail(), request.drinkId());
+        return Envelope.success("Drink added to cart successfully!", currentCart(session));
     }
 
     @DeleteMapping("/items/{cartItemId}")
