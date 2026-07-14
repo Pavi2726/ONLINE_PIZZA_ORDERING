@@ -1,5 +1,6 @@
-import { act, renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { useApi } from '../hooks/useApi';
 import { usePagination } from '../hooks/usePagination';
 import { useTheme } from '../hooks/useTheme';
 
@@ -35,6 +36,49 @@ describe('usePagination', () => {
         rerender({ list: items.slice(0, 5) });
         expect(result.current.page).toBe(1);
         expect(result.current.pageItems).toEqual([1, 2, 3, 4, 5]);
+    });
+
+    // A filter that swaps in an equally-long but different result set must not leave the
+    // visitor stranded on whatever page they happened to be on before applying it.
+    it('resets to page 1 when the list changes even if the page count does not shrink', () => {
+        const vegPizzas = Array.from({ length: 20 }, (_, i) => ({ id: i }));
+        const nonVegPizzas = Array.from({ length: 20 }, (_, i) => ({ id: 100 + i }));
+
+        const { result, rerender } = renderHook(({ list }) => usePagination(list), {
+            initialProps: { list: vegPizzas },
+        });
+
+        act(() => result.current.setPage(2));
+        expect(result.current.page).toBe(2);
+
+        rerender({ list: nonVegPizzas });
+        expect(result.current.page).toBe(1);
+    });
+});
+
+describe('useApi', () => {
+    // Two requests can be in flight together (a second filter change before the first
+    // request settles); whichever was issued last must win regardless of network timing.
+    it('ignores a stale response that resolves after a newer request has already started', async () => {
+        let resolveFirst;
+        const first = new Promise((resolve) => {
+            resolveFirst = resolve;
+        });
+        const fetcher = vi.fn().mockImplementationOnce(() => first).mockImplementationOnce(() => Promise.resolve('second'));
+
+        const { result, rerender } = renderHook(({ dep }) => useApi(fetcher, [dep]), {
+            initialProps: { dep: 1 },
+        });
+
+        rerender({ dep: 2 });
+        await waitFor(() => expect(result.current.data).toBe('second'));
+
+        await act(async () => {
+            resolveFirst('first');
+            await Promise.resolve();
+        });
+
+        expect(result.current.data).toBe('second');
     });
 });
 

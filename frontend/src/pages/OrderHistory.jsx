@@ -151,9 +151,16 @@ export default function OrderHistory() {
                                     >
                                         <i className="bi bi-eye" /> View Details
                                     </Link>
-                                    <Link to={`/orders/edit/${order.id}`} className="btn btn-warning btn-sm">
-                                        <i className="bi bi-pencil-square" /> Edit Order
-                                    </Link>
+                                    {/* Editing closes after five minutes, well before the order
+                                        leaves PLACED status, so this needs its own flag. */}
+                                    {order.editable && (
+                                        <Link
+                                            to={`/orders/edit/${order.id}`}
+                                            className="btn btn-warning btn-sm"
+                                        >
+                                            <i className="bi bi-pencil-square" /> Edit Order
+                                        </Link>
+                                    )}
                                     <button
                                         type="button"
                                         className="btn btn-danger btn-sm"

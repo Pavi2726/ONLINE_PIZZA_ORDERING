@@ -8,7 +8,12 @@ export default function Pagination({ page, pageCount, onChange }) {
         <nav aria-label="Pagination">
             <ul className="pagination justify-content-center mt-4">
                 <li className={`page-item ${page === 1 ? 'disabled' : ''}`}>
-                    <button type="button" className="page-link" onClick={() => onChange(page - 1)}>
+                    <button
+                        type="button"
+                        className="page-link"
+                        disabled={page === 1}
+                        onClick={() => onChange(page - 1)}
+                    >
                         &laquo;
                     </button>
                 </li>
@@ -20,7 +25,12 @@ export default function Pagination({ page, pageCount, onChange }) {
                     </li>
                 ))}
                 <li className={`page-item ${page === pageCount ? 'disabled' : ''}`}>
-                    <button type="button" className="page-link" onClick={() => onChange(page + 1)}>
+                    <button
+                        type="button"
+                        className="page-link"
+                        disabled={page === pageCount}
+                        onClick={() => onChange(page + 1)}
+                    >
                         &raquo;
                     </button>
                 </li>

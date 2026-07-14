@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import AlertStack from '../components/AlertStack';
+import Pagination from '../components/Pagination';
 import SubmitButton from '../components/SubmitButton';
 import OrderStatusStepper from '../components/OrderStatusStepper';
 import { RequireAdmin, RequireCustomer } from '../components/Guards';
@@ -87,6 +88,32 @@ describe('SubmitButton', () => {
         // The spinner is aria-hidden (Bootstrap's own markup), so it is deliberately
         // absent from the accessibility tree - assert on the DOM instead.
         expect(container.querySelector('.spinner-border')).toBeInTheDocument();
+    });
+});
+
+describe('Pagination', () => {
+    // The "disabled" CSS class alone doesn't stop a click; the control itself must be
+    // disabled or « on page 1 sends the view to page 0 (an empty, unlabeled grid).
+    it('actually disables the prev control on the first page', () => {
+        const onChange = vi.fn();
+        render(<Pagination page={1} pageCount={3} onChange={onChange} />);
+
+        const prev = screen.getByRole('button', { name: '«' });
+        expect(prev).toBeDisabled();
+
+        prev.click();
+        expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it('actually disables the next control on the last page', () => {
+        const onChange = vi.fn();
+        render(<Pagination page={3} pageCount={3} onChange={onChange} />);
+
+        const next = screen.getByRole('button', { name: '»' });
+        expect(next).toBeDisabled();
+
+        next.click();
+        expect(onChange).not.toHaveBeenCalled();
     });
 });
 

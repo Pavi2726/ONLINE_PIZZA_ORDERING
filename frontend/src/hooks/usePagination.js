@@ -11,7 +11,13 @@ export function usePagination(items, pageSize = PAGE_SIZE) {
     const list = items ?? [];
     const pageCount = Math.max(1, Math.ceil(list.length / pageSize));
 
-    // A shrinking list (a filter, a delete) can strand the view past the last page.
+    // A new list (a filter changing, a reload after a delete) means whatever page the
+    // view was on no longer corresponds to anything the visitor chose — start over.
+    useEffect(() => {
+        setPage(1);
+    }, [items]);
+
+    // Belt-and-suspenders: also clamp if the page count alone shrinks past the current page.
     useEffect(() => {
         setPage((current) => Math.min(current, pageCount));
     }, [pageCount]);

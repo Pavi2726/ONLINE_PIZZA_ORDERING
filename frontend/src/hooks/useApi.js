@@ -6,6 +6,7 @@ export function useApi(fetcher, deps = []) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const alive = useRef(true);
+    const requestId = useRef(0);
 
     useEffect(() => {
         alive.current = true;
@@ -15,17 +16,20 @@ export function useApi(fetcher, deps = []) {
     }, []);
 
     const load = useCallback(async () => {
+        // Tag this call so a slower, older request can't clobber a newer one's result
+        // if responses resolve out of order (e.g. two filter changes in quick succession).
+        const id = ++requestId.current;
         setLoading(true);
         try {
             const result = await fetcher();
-            if (alive.current) {
+            if (alive.current && id === requestId.current) {
                 setData(result);
                 setError(null);
             }
         } catch (err) {
-            if (alive.current) setError(err);
+            if (alive.current && id === requestId.current) setError(err);
         } finally {
-            if (alive.current) setLoading(false);
+            if (alive.current && id === requestId.current) setLoading(false);
         }
         // The caller controls invalidation through deps, as with any effect.
         // eslint-disable-next-line react-hooks/exhaustive-deps

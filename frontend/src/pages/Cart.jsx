@@ -28,6 +28,16 @@ export default function Cart() {
                 pushFromResponse(result);
             } catch (error) {
                 if (error instanceof ApiError) pushAlert('danger', error.message);
+                // A rejected coupon still clears any previously-applied one server-side
+                // (see CartApiController#applyCoupon), so re-sync rather than leave the
+                // page showing a coupon/discount the session no longer has applied.
+                try {
+                    const fresh = await cartApi.get();
+                    setCart(fresh);
+                    setCartItemCount(fresh.itemCount);
+                } catch {
+                    // Best-effort; the next successful mutation will resync anyway.
+                }
             }
         });
     }
