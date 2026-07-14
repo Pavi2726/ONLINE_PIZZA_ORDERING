@@ -24,6 +24,11 @@
         <!-- JDK 23+ defaults to -proc:none; force annotation processing for Lombok. -->
         <maven.compiler.proc>full</maven.compiler.proc>
         <cloudinary.version>1.39.0</cloudinary.version>
+
+        <frontend.plugin.version>1.15.1</frontend.plugin.version>
+        <frontend.node.version>v20.18.0</frontend.node.version>
+        <!-- `mvn test -DskipFrontend=true` skips the npm build; handy for a fast backend loop. -->
+        <skipFrontend>false</skipFrontend>
     </properties>
 
     <dependencies>
@@ -39,11 +44,6 @@
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
 
-        <!-- Thymeleaf templating -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-thymeleaf</artifactId>
-        </dependency>
 
         <!-- Bean Validation -->
         <dependency>
@@ -121,6 +121,68 @@
                         </exclude>
                     </excludes>
                 </configuration>
+            </plugin>
+
+            <!--
+                Builds the React app as part of the Maven build. Vite is configured to emit
+                into target/classes/static (with emptyOutDir off, so it never wipes what
+                maven-resources-plugin puts there), which means Spring Boot serves the SPA
+                from the classpath: one `mvn spring-boot:run`, one jar, no separate server.
+
+                Bound to process-resources because that phase also runs inside the forked
+                lifecycle of spring-boot:run, so a plain `mvn spring-boot:run` picks up a
+                freshly built frontend.
+            -->
+            <plugin>
+                <groupId>com.github.eirslett</groupId>
+                <artifactId>frontend-maven-plugin</artifactId>
+                <version>${frontend.plugin.version}</version>
+                <configuration>
+                    <workingDirectory>frontend</workingDirectory>
+                    <skip>${skipFrontend}</skip>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>install-node-and-npm</id>
+                        <goals>
+                            <goal>install-node-and-npm</goal>
+                        </goals>
+                        <phase>process-resources</phase>
+                        <configuration>
+                            <nodeVersion>${frontend.node.version}</nodeVersion>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>npm-install</id>
+                        <goals>
+                            <goal>npm</goal>
+                        </goals>
+                        <phase>process-resources</phase>
+                        <configuration>
+                            <arguments>ci</arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>npm-build</id>
+                        <goals>
+                            <goal>npm</goal>
+                        </goals>
+                        <phase>process-resources</phase>
+                        <configuration>
+                            <arguments>run build</arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>npm-test</id>
+                        <goals>
+                            <goal>npm</goal>
+                        </goals>
+                        <phase>test</phase>
+                        <configuration>
+                            <arguments>test</arguments>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

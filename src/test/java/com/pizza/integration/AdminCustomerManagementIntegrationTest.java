@@ -6,35 +6,25 @@ import com.pizza.repository.CustomerRepository;
 import com.pizza.testsupport.TestDataFactory;
 import com.pizza.util.SessionUtil;
 import jakarta.persistence.EntityManager;
-import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
-import org.springframework.test.web.servlet.MockMvc;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.hasItems;
-import static org.hamcrest.Matchers.hasProperty;
-import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 /**
- * End-to-end coverage of admin customer management (US-015, US-016): real
- * {@code MockMvc} calls through the real {@link com.pizza.controller.AdminCustomerController},
- * real {@link com.pizza.service.AdminCustomerService} and the real
- * {@link CustomerRepository} backed by H2.
+ * End-to-end coverage of the admin customer list and edit (US-016) against real H2 rows.
+ *
+ * <p>A duplicate email raises {@code DuplicateEmailException}, which the API maps to a
+ * 409 carrying the real message.
  */
 class AdminCustomerManagementIntegrationTest extends AbstractIntegrationTest {
-
-    @Autowired
-    private MockMvc mockMvc;
 
     @Autowired
     private CustomerRepository customerRepository;
@@ -48,20 +38,35 @@ class AdminCustomerManagementIntegrationTest extends AbstractIntegrationTest {
         return session;
     }
 
-    // -------------------------------------------------------------------- list
-
     @Test
     void list_reflectsRealSeededCustomers() throws Exception {
         Customer customer1 = customerRepository.saveAndFlush(TestDataFactory.customer());
         Customer customer2 = customerRepository.saveAndFlush(
                 TestDataFactory.customer("Second", "Person", "Passw0rd!", "2 Other Street"));
 
-        mockMvc.perform(get("/admin/customers").session(adminSession()))
+        String body = mockMvc.perform(get("/api/admin/customers").session(adminSession()))
                 .andExpect(status().isOk())
-                .andExpect(view().name("admin-customer-list"))
-                .andExpect(model().attribute("customers", hasItems(
-                        hasProperty("email", is(customer1.getEmail())),
-                        hasProperty("email", is(customer2.getEmail())))));
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        assertThat(body).contains(customer1.getEmail());
+        assertThat(body).contains(customer2.getEmail());
+    }
+
+    /** The customer list must never carry password hashes. */
+    @Test
+    void list_neverExposesPasswordHashes() throws Exception {
+        Customer customer = customerRepository.saveAndFlush(TestDataFactory.customer());
+
+        String body = mockMvc.perform(get("/api/admin/customers").session(adminSession()))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        assertThat(body).doesNotContain(customer.getPassword());
+        assertThat(body).doesNotContain("password");
     }
 
     @Test
@@ -71,28 +76,24 @@ class AdminCustomerManagementIntegrationTest extends AbstractIntegrationTest {
         customerRepository.saveAndFlush(TestDataFactory.customer());
         customerRepository.saveAndFlush(TestDataFactory.customer());
 
-        mockMvc.perform(get("/admin/customers").param("search", "Zelda").session(adminSession()))
+        mockMvc.perform(get("/api/admin/customers").param("search", "Zelda").session(adminSession()))
                 .andExpect(status().isOk())
-                .andExpect(view().name("admin-customer-list"))
-                .andExpect(model().attribute("customers", List.of(match)));
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].email").value(match.getEmail()));
     }
 
-    // -------------------------------------------------------------------- edit
-
     @Test
-    void showEditForm_prefillsRealPersistedCustomerValues() throws Exception {
+    void getCustomer_returnsRealPersistedValues() throws Exception {
         Customer customer = customerRepository.saveAndFlush(TestDataFactory.customer());
 
-        mockMvc.perform(get("/admin/customers/edit/" + customer.getId()).session(adminSession()))
+        mockMvc.perform(get("/api/admin/customers/{id}", customer.getId()).session(adminSession()))
                 .andExpect(status().isOk())
-                .andExpect(view().name("edit-customer"))
-                .andExpect(model().attribute("customerId", customer.getId()))
-                .andExpect(model().attribute("customerDTO", allOf(
-                        hasProperty("firstName", is(customer.getFirstName())),
-                        hasProperty("lastName", is(customer.getLastName())),
-                        hasProperty("email", is(customer.getEmail())),
-                        hasProperty("phone", is(customer.getPhone())),
-                        hasProperty("address", is(customer.getAddress())))));
+                .andExpect(jsonPath("$.firstName").value(customer.getFirstName()))
+                .andExpect(jsonPath("$.lastName").value(customer.getLastName()))
+                .andExpect(jsonPath("$.email").value(customer.getEmail()))
+                .andExpect(jsonPath("$.phone").value(customer.getPhone()))
+                .andExpect(jsonPath("$.address").value(customer.getAddress()))
+                .andExpect(jsonPath("$.password").doesNotExist());
     }
 
     @Test
@@ -101,17 +102,17 @@ class AdminCustomerManagementIntegrationTest extends AbstractIntegrationTest {
         Long id = customer.getId();
         Customer freshValues = TestDataFactory.customer();
 
-        mockMvc.perform(post("/admin/customers/update/" + id)
-                        .param("firstName", "Updated")
-                        .param("lastName", "Name")
-                        .param("email", freshValues.getEmail())
-                        .param("phone", freshValues.getPhone())
-                        .param("address", "99 Updated Avenue")
+        mockMvc.perform(put("/api/admin/customers/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "firstName", "Updated",
+                                "lastName", "Name",
+                                "email", freshValues.getEmail(),
+                                "phone", freshValues.getPhone(),
+                                "address", "99 Updated Avenue")))
                         .session(adminSession()))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/admin/customers"))
-                .andExpect(flash().attribute("successMessage",
-                        "Customer \"Updated Name\" updated successfully."));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Customer \"Updated Name\" updated successfully."));
 
         entityManager.flush();
         entityManager.clear();
@@ -125,7 +126,7 @@ class AdminCustomerManagementIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void updateCustomer_withDuplicateEmail_isRejectedWithFlashError_andRealRowIsUntouched() throws Exception {
+    void updateCustomer_withDuplicateEmail_isRejected_andRealRowIsUntouched() throws Exception {
         Customer other = customerRepository.saveAndFlush(TestDataFactory.customer());
         Customer target = customerRepository.saveAndFlush(TestDataFactory.customer());
         Long targetId = target.getId();
@@ -134,22 +135,21 @@ class AdminCustomerManagementIntegrationTest extends AbstractIntegrationTest {
         String originalPhone = target.getPhone();
         String originalAddress = target.getAddress();
 
-        mockMvc.perform(post("/admin/customers/update/" + targetId)
-                        .param("firstName", "Should Not")
-                        .param("lastName", "Apply")
-                        .param("email", other.getEmail())
-                        .param("phone", target.getPhone())
-                        .param("address", "Should not be saved")
+        mockMvc.perform(put("/api/admin/customers/{id}", targetId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "firstName", "Should Not",
+                                "lastName", "Apply",
+                                "email", other.getEmail(),
+                                "phone", target.getPhone(),
+                                "address", "Should not be saved")))
                         .session(adminSession()))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/admin/customers"))
-                .andExpect(flash().attribute("errorMessage",
-                        "Another account with this email already exists"));
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Another account with this email already exists"));
 
-        // The real, H2-persisted row for target is provably untouched - the
-        // service throws DuplicateEmailException before mutating/saving the
-        // managed entity, and AdminCustomerController.updateCustomer's
-        // try/catch swallows it into a flash error rather than a 500.
+        entityManager.flush();
+        entityManager.clear();
+
         Customer reloaded = customerRepository.findById(targetId).orElseThrow();
         assertThat(reloaded.getFirstName()).isEqualTo(originalFirstName);
         assertThat(reloaded.getEmail()).isEqualTo(originalEmail);

@@ -13,33 +13,29 @@ import com.pizza.repository.PizzaRepository;
 import com.pizza.testsupport.TestDataFactory;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 /**
- * End-to-end coverage of the full customer checkout flow (US-001/US-002 login,
- * cart, coupon, US-007 order placement): register -> login -> add pizzas to
- * cart -> apply a real coupon -> checkout -> place. Every hop is a real
- * {@code MockMvc} call through the real controllers, services and repositories
- * against H2; only {@code CloudinaryService} is mocked (inherited, and unused
- * by this flow). The assertions verify the persisted {@link Order}'s totals in
- * H2 match the full subtotal/discount/tax/total pipeline, not just isolated
- * arithmetic.
+ * End-to-end coverage of the full customer checkout flow (US-001/US-002 login, cart,
+ * coupon, US-007 order placement): register -> login -> add pizzas to cart -> apply a
+ * real coupon -> review the cart -> place. Every hop is a real {@code MockMvc} call
+ * through the real API controllers, services and repositories against H2; only
+ * {@code CloudinaryService} is mocked (inherited, and unused by this flow). The
+ * assertions verify the persisted {@link Order}'s totals in H2 match the full
+ * subtotal/discount/tax/total pipeline, not just isolated arithmetic.
  */
 class CustomerCheckoutFlowIntegrationTest extends AbstractIntegrationTest {
-
-    @Autowired
-    private MockMvc mockMvc;
 
     @Autowired
     private PizzaRepository pizzaRepository;
@@ -56,26 +52,12 @@ class CustomerCheckoutFlowIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private EntityManager entityManager;
 
-    private static final String PASSWORD = "Passw0rd!";
-
-    private MockHttpSession registerAndLogin(Customer template) throws Exception {
-        mockMvc.perform(post("/register")
-                        .param("firstName", template.getFirstName())
-                        .param("lastName", template.getLastName())
-                        .param("email", template.getEmail())
-                        .param("phone", template.getPhone())
-                        .param("password", PASSWORD)
-                        .param("confirmPassword", PASSWORD)
-                        .param("address", template.getAddress()))
-                .andExpect(status().is3xxRedirection());
-
-        MvcResult loginResult = mockMvc.perform(post("/login")
-                        .param("email", template.getEmail())
-                        .param("password", PASSWORD))
-                .andExpect(status().is3xxRedirection())
-                .andReturn();
-
-        return (MockHttpSession) loginResult.getRequest().getSession(false);
+    private void addToCart(MockHttpSession session, Pizza pizza) throws Exception {
+        mockMvc.perform(post("/api/cart/items")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("pizzaId", pizza.getId())))
+                        .session(session))
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -90,12 +72,9 @@ class CustomerCheckoutFlowIntegrationTest extends AbstractIntegrationTest {
                 TestDataFactory.pizza("Pepperoni", new BigDecimal("5.00"), "Classic", true));
 
         // pizza1 x1, pizza2 x2 (two separate add-to-cart calls accumulate quantity).
-        mockMvc.perform(post("/cart/add").param("pizzaId", String.valueOf(pizza1.getId())).session(session))
-                .andExpect(status().is3xxRedirection());
-        mockMvc.perform(post("/cart/add").param("pizzaId", String.valueOf(pizza2.getId())).session(session))
-                .andExpect(status().is3xxRedirection());
-        mockMvc.perform(post("/cart/add").param("pizzaId", String.valueOf(pizza2.getId())).session(session))
-                .andExpect(status().is3xxRedirection());
+        addToCart(session, pizza1);
+        addToCart(session, pizza2);
+        addToCart(session, pizza2);
 
         // CartService.addPizzaToCart saves each CartItem through CartItemRepository
         // directly, never appending to the already-loaded parent Cart's in-memory
@@ -124,22 +103,34 @@ class CustomerCheckoutFlowIntegrationTest extends AbstractIntegrationTest {
 
         Coupon coupon = couponRepository.saveAndFlush(TestDataFactory.coupon(10, true));
 
-        mockMvc.perform(post("/cart/apply-coupon").param("couponCode", coupon.getCouponCode()).session(session))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(flash().attribute("successMessage", "Coupon applied successfully!"));
-
-        mockMvc.perform(get("/orders/checkout").session(session))
+        // Applying the coupon answers with the whole recomputed cart, so the client
+        // renders the discount without a follow-up read.
+        mockMvc.perform(post("/api/cart/coupon")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("couponCode", coupon.getCouponCode())))
+                        .session(session))
                 .andExpect(status().isOk())
-                .andExpect(view().name("checkout"));
+                .andExpect(jsonPath("$.message").value("Coupon applied successfully!"))
+                .andExpect(jsonPath("$.data.appliedCoupon.couponCode").value(coupon.getCouponCode()))
+                .andExpect(jsonPath("$.data.subtotal").value(20.00))
+                .andExpect(jsonPath("$.data.discount").value(2.00))
+                .andExpect(jsonPath("$.data.grandTotal").value(18.00));
 
-        MvcResult placeResult = mockMvc.perform(post("/orders/place").session(session))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(flash().attribute("successMessage", "Order placed successfully!"))
+        // The checkout screen is backed by this same cart read - there is no separate endpoint.
+        mockMvc.perform(get("/api/cart").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2));
+
+        MvcResult placeResult = mockMvc.perform(post("/api/orders").session(session))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.message").value("Order placed successfully!"))
+                .andExpect(jsonPath("$.data.status").value("PLACED"))
                 .andReturn();
 
-        String redirectedUrl = placeResult.getResponse().getRedirectedUrl();
-        assertThat(redirectedUrl).startsWith("/orders/success/");
-        String orderNumber = redirectedUrl.substring("/orders/success/".length());
+        String orderNumber = objectMapper
+                .readTree(placeResult.getResponse().getContentAsString())
+                .path("data").path("orderNumber").asText();
+        assertThat(orderNumber).isNotBlank();
 
         Order persistedOrder = orderRepository.findByOrderNumber(orderNumber).orElseThrow();
 
@@ -155,21 +146,20 @@ class CustomerCheckoutFlowIntegrationTest extends AbstractIntegrationTest {
         assertThat(persistedOrder.getDeliveryAddress()).isEqualTo(template.getAddress());
         assertThat(persistedOrder.getOrderItems()).hasSize(2);
 
-        // Checkout clears the cart for real in H2.
+        // Placing the order clears the cart for real in H2.
         Cart cartAfterCheckout = cartRepository.findByUsername(template.getEmail()).orElseThrow();
         assertThat(cartAfterCheckout.getCartItems()).isEmpty();
     }
 
     @Test
-    void viewCart_rendersActiveCouponCodeButNotInactiveOne() throws Exception {
+    void viewCart_offersActiveCouponButNotInactiveOne() throws Exception {
         Customer template = TestDataFactory.customer();
         MockHttpSession session = registerAndLogin(template);
         assertThat(session).isNotNull();
 
         Pizza pizza = pizzaRepository.saveAndFlush(
                 TestDataFactory.pizza("Margherita", new BigDecimal("10.00"), "Classic", true));
-        mockMvc.perform(post("/cart/add").param("pizzaId", String.valueOf(pizza.getId())).session(session))
-                .andExpect(status().is3xxRedirection());
+        addToCart(session, pizza);
 
         // Same stale-collection issue documented above in fullCheckoutFlow...: the
         // Cart's cartItems were already cached (empty) by this shared transaction
@@ -181,13 +171,99 @@ class CustomerCheckoutFlowIntegrationTest extends AbstractIntegrationTest {
         Coupon activeCoupon = couponRepository.saveAndFlush(TestDataFactory.coupon(10, true));
         Coupon inactiveCoupon = couponRepository.saveAndFlush(TestDataFactory.coupon(15, false));
 
-        MvcResult result = mockMvc.perform(get("/cart").session(session))
+        MvcResult result = mockMvc.perform(get("/api/cart").session(session))
                 .andExpect(status().isOk())
-                .andExpect(view().name("cart"))
                 .andReturn();
 
         String body = result.getResponse().getContentAsString();
         assertThat(body).contains(activeCoupon.getCouponCode());
         assertThat(body).doesNotContain(inactiveCoupon.getCouponCode());
+    }
+
+    /** An unknown code is rejected and must not leave a stale coupon applied to the cart. */
+    @Test
+    void applyCoupon_withUnknownCode_isRejectedAndClearsAnyPreviouslyAppliedCoupon() throws Exception {
+        Customer template = TestDataFactory.customer();
+        MockHttpSession session = registerAndLogin(template);
+
+        Pizza pizza = pizzaRepository.saveAndFlush(
+                TestDataFactory.pizza("Margherita", new BigDecimal("10.00"), "Classic", true));
+        addToCart(session, pizza);
+        entityManager.flush();
+        entityManager.clear();
+
+        Coupon valid = couponRepository.saveAndFlush(TestDataFactory.coupon(10, true));
+        mockMvc.perform(post("/api/cart/coupon")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("couponCode", valid.getCouponCode())))
+                        .session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.appliedCoupon.couponCode").value(valid.getCouponCode()));
+
+        mockMvc.perform(post("/api/cart/coupon")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("couponCode", "NOPE-DOES-NOT-EXIST")))
+                        .session(session))
+                .andExpect(status().is4xxClientError());
+
+        mockMvc.perform(get("/api/cart").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.appliedCoupon").doesNotExist())
+                .andExpect(jsonPath("$.discount").value(0));
+    }
+
+    /**
+     * Logging out drops the applied coupon along with the principal. The server-rendered
+     * app removed only the principal, so a coupon applied by one customer survived into
+     * the next customer's session on the same browser.
+     */
+    @Test
+    void logout_clearsTheAppliedCoupon_soItDoesNotLeakIntoTheNextCustomerOnTheSameSession() throws Exception {
+        Customer first = TestDataFactory.customer();
+        MockHttpSession session = registerAndLogin(first);
+
+        Pizza pizza = pizzaRepository.saveAndFlush(
+                TestDataFactory.pizza("Margherita", new BigDecimal("10.00"), "Classic", true));
+        addToCart(session, pizza);
+        entityManager.flush();
+        entityManager.clear();
+
+        Coupon coupon = couponRepository.saveAndFlush(TestDataFactory.coupon(50, true));
+        mockMvc.perform(post("/api/cart/coupon")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("couponCode", coupon.getCouponCode())))
+                        .session(session))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/auth/logout").session(session))
+                .andExpect(status().isOk());
+
+        // A second customer logs in on the very same session.
+        Customer second = TestDataFactory.customer();
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "firstName", second.getFirstName(),
+                                "lastName", second.getLastName(),
+                                "email", second.getEmail(),
+                                "phone", second.getPhone(),
+                                "password", PASSWORD,
+                                "confirmPassword", PASSWORD,
+                                "address", second.getAddress()))))
+                .andExpect(status().isCreated());
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("email", second.getEmail(), "password", PASSWORD)))
+                        .session(session))
+                .andExpect(status().isOk());
+
+        addToCart(session, pizza);
+        entityManager.flush();
+        entityManager.clear();
+
+        mockMvc.perform(get("/api/cart").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.appliedCoupon").doesNotExist())
+                .andExpect(jsonPath("$.discount").value(0));
     }
 }

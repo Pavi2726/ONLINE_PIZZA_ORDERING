@@ -22,6 +22,10 @@ public class CustomerAuthInterceptor implements HandlerInterceptor {
         if (session != null && SessionUtil.isCustomerLoggedIn(session)) {
             return true;
         }
+        if (AuthChallenge.isApiRequest(request)) {
+            AuthChallenge.sendUnauthorized(response, "Please log in to continue.");
+            return false;
+        }
         response.sendRedirect(request.getContextPath() + "/login");
         return false;
     }

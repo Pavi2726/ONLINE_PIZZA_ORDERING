@@ -1,6 +1,8 @@
 # Online Pizza Ordering System
 
-An Online Pizza Ordering System built using **Spring Boot**, **Thymeleaf**, and **MySQL**. The application enables customers to browse pizzas, place orders, apply coupons, manage their orders, and allows administrators to manage pizzas, customers, orders, and coupons.
+An Online Pizza Ordering System built using **Spring Boot**, **React**, and **MySQL**. The application enables customers to browse pizzas, place orders, apply coupons, manage their orders, and allows administrators to manage pizzas, customers, orders, and coupons.
+
+The frontend is a React single-page app in [`frontend/`](frontend/) talking to a JSON API under `/api/**`. Maven builds it into the Spring Boot jar, so the whole application still ships and runs as one artifact on port 8080.
 
 ---
 
@@ -32,12 +34,13 @@ An Online Pizza Ordering System built using **Spring Boot**, **Thymeleaf**, and 
 | Layer          | Technology                  |
 | -------------- | --------------------------- |
 | Backend        | Java 17, Spring Boot 3.x    |
-| Frontend       | Thymeleaf, Bootstrap 5      |
+| Frontend       | React 18, React Router, Bootstrap 5 |
+| Frontend build | Vite (via frontend-maven-plugin) |
 | Database       | MySQL                       |
 | ORM            | Spring Data JPA (Hibernate) |
-| Authentication | BCrypt + HttpSession        |
+| Authentication | BCrypt + HttpSession (JSESSIONID) |
 | Build Tool     | Maven                       |
-| Testing        | JUnit 5                     |
+| Testing        | JUnit 5, Vitest             |
 
 ---
 
@@ -71,15 +74,28 @@ An Online Pizza Ordering System built using **Spring Boot**, **Thymeleaf**, and 
 ```text
 src/
 ├── main/
-│   ├── java/
-│   ├── resources/
-│   └── templates/
+│   ├── java/com/pizza/
+│   │   ├── api/          REST controllers + response DTOs (the whole HTTP surface)
+│   │   ├── service/      business logic
+│   │   ├── repository/   Spring Data JPA
+│   │   ├── entity/       JPA entities
+│   │   └── config/       auth interceptors, SPA fallback
+│   └── resources/
 └── test/
+
+frontend/                 React SPA (Vite)
+├── src/
+│   ├── api/              fetch client + endpoint modules
+│   ├── components/       layouts and shared UI
+│   ├── context/          session + alerts
+│   ├── hooks/            pagination, theme, fetch, submit
+│   ├── pages/            customer screens
+│   └── pages/admin/      admin screens
+└── index.html
 
 DATABASE_SCHEMA.sql
 PROJECT_STRUCTURE.md
 SETUP_GUIDE.md
-POSTMAN_COLLECTION.json
 pom.xml
 ```
 
@@ -130,26 +146,49 @@ The application follows a layered architecture consisting of:
 * Model
 * Repository
 * Service
-* Controller
-* View (Thymeleaf)
+* REST controller (`com.pizza.api`) — thin, delegates to the services
+* View (React SPA in `frontend/`)
+
+### Running the frontend with hot reload
+
+`mvn spring-boot:run` serves the last built SPA, which is fine for a quick look but means
+re-running Maven after every frontend edit. While working on the UI, run the two together:
+
+```bash
+mvn spring-boot:run                  # API on :8080
+cd frontend && npm run dev           # SPA on :5173, proxies /api to :8080
+```
+
+Open http://localhost:5173. Auth still uses the JSESSIONID cookie; the Vite proxy keeps it
+same-origin, so nothing special is needed.
+
+To skip the npm build during a backend-only loop: `mvn test -DskipFrontend=true`.
 
 ---
 
 ## Testing
 
-The project has an automated JUnit 5 suite covering all 18 user stories across three layers:
+The project has an automated JUnit 5 suite covering all 18 user stories:
 
 * **Unit tests** — Mockito-based, no Spring context; business logic and validation rules.
-* **Controller tests** — `@WebMvcTest` slices; routing, auth boundaries, and request/response behavior.
-* **Integration tests** — `@SpringBootTest` against an in-memory H2 database; full request → controller → service → repository flows.
+* **Integration tests** — `@SpringBootTest` + MockMvc against an in-memory H2 database; full request → API controller → service → repository flows, including the auth boundaries (a guarded API route must answer **401 JSON**, never a redirect) and the SPA history fallback.
 
-Run the whole suite with:
+Plus a small **Vitest** suite in `frontend/` for the logic ported out of the old vanilla JS — the API client, pagination, the theme toggle, alert auto-dismiss, and the route guards.
+
+Run everything with:
 
 ```bash
-mvn test
+mvn test            # backend + frontend (frontend-maven-plugin runs `npm test`)
 ```
 
-The suite runs entirely against H2 and never touches the live MySQL database configured in `.env` — no additional setup is required to run it.
+Or each on its own:
+
+```bash
+mvn test -DskipFrontend=true
+cd frontend && npm test
+```
+
+The backend suite runs entirely against H2 and never touches the live MySQL database configured in `.env` — no additional setup is required to run it.
 
 ---
 

@@ -15,33 +15,35 @@ import com.pizza.util.SessionUtil;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
-import org.springframework.test.web.servlet.MockMvc;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * End-to-end coverage of order history, the 5-minute edit window and
- * cancellation (US-007): real {@code MockMvc} calls through the real
- * {@link com.pizza.controller.OrderController}, real
- * {@link com.pizza.service.OrderService} and the real {@link OrderRepository}
- * (its custom fetch-join queries included) against H2.
+ * End-to-end coverage of order history, the 5-minute edit window and cancellation
+ * (US-007): real {@code MockMvc} calls through the real {@code OrderApiController}, real
+ * {@link com.pizza.service.OrderService} and the real {@link OrderRepository} (its custom
+ * fetch-join queries included) against H2.
  *
- * <p>Timestamp-dependent behaviour (the 5-minute edit window) is exercised by
- * seeding {@code Order.orderTime} directly via repository save with an
- * explicit past {@link LocalDateTime} - never by sleeping in the test.
+ * <p>Timestamp-dependent behaviour (the 5-minute edit window) is exercised by seeding
+ * {@code Order.orderTime} directly via repository save with an explicit past
+ * {@link LocalDateTime} - never by sleeping in the test.
+ *
+ * <p>Two expectations deliberately changed with the API: violating the edit window or
+ * cancelling twice used to fall through to the generic handler as an uncaught HTTP 500.
+ * The API maps {@code IllegalStateException} to a 409 Conflict with the real message, so
+ * the client can show the user why instead of a blank error page.
  */
 class OrderHistoryEditCancelIntegrationTest extends AbstractIntegrationTest {
-
-    @Autowired
-    private MockMvc mockMvc;
 
     @Autowired
     private CustomerRepository customerRepository;
@@ -79,10 +81,31 @@ class OrderHistoryEditCancelIntegrationTest extends AbstractIntegrationTest {
         return session;
     }
 
+    // -------------------------------------------------------------- history
+
+    @Test
+    void history_returnsTheCustomersOwnOrdersWithComputedStatusMetadata() throws Exception {
+        Customer customer = persistedCustomer();
+        Pizza pizza = persistedPizza(new BigDecimal("10.00"));
+        seedOrder(customer, LocalDateTime.now(), "PLACED", pizza, 1);
+        MockHttpSession session = customerSession(customer);
+
+        // stepIndex / estimatedWindow / cancellable are computed server-side from
+        // OrderStatus, so the browser never restates the progression rules.
+        mockMvc.perform(get("/api/orders").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].status").value("PLACED"))
+                .andExpect(jsonPath("$[0].stepIndex").value(0))
+                .andExpect(jsonPath("$[0].estimatedWindow").value("45–60 min"))
+                .andExpect(jsonPath("$[0].cancellable").value(true));
+    }
+
     // -------------------------------------------------------- within window
 
     @Test
-    void editingOrderWithinFiveMinuteWindow_increaseQuantityAndUpdateDetails_persistsRealChangesInH2() throws Exception {
+    void editingOrderWithinFiveMinuteWindow_increaseQuantityAndUpdateDetails_persistsRealChangesInH2()
+            throws Exception {
         Customer customer = persistedCustomer();
         Pizza pizza = persistedPizza(new BigDecimal("10.00"));
         Order seeded = seedOrder(customer, LocalDateTime.now().minusSeconds(30), "PLACED", pizza, 1);
@@ -90,10 +113,10 @@ class OrderHistoryEditCancelIntegrationTest extends AbstractIntegrationTest {
         Long itemId = seeded.getOrderItems().get(0).getId();
         MockHttpSession session = customerSession(customer);
 
-        mockMvc.perform(post("/orders/edit/" + orderId + "/increase/" + itemId).session(session))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/orders/edit/" + orderId))
-                .andExpect(flash().attribute("successMessage", "Pizza quantity updated successfully."));
+        mockMvc.perform(post("/api/orders/{orderId}/items/{itemId}/increase", orderId, itemId)
+                        .session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Pizza quantity updated successfully."));
 
         Order afterIncrease = orderRepository.findByIdWithDetails(orderId).orElseThrow();
         assertThat(afterIncrease.getOrderItems().get(0).getQuantity()).isEqualTo(2);
@@ -104,13 +127,14 @@ class OrderHistoryEditCancelIntegrationTest extends AbstractIntegrationTest {
         assertThat(afterIncrease.getTax()).isEqualByComparingTo("1.60");
         assertThat(afterIncrease.getTotalAmount()).isEqualByComparingTo("21.60");
 
-        mockMvc.perform(post("/orders/edit/" + orderId)
-                        .param("deliveryAddress", "42 New Address Lane")
-                        .param("phone", "9998887777")
+        mockMvc.perform(put("/api/orders/{orderId}", orderId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "deliveryAddress", "42 New Address Lane",
+                                "phone", "9998887777")))
                         .session(session))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/orders/history"))
-                .andExpect(flash().attribute("successMessage", "Order updated successfully."));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Order updated successfully."));
 
         Order afterAddressUpdate = orderRepository.findByIdWithDetails(orderId).orElseThrow();
         assertThat(afterAddressUpdate.getDeliveryAddress()).isEqualTo("42 New Address Lane");
@@ -120,21 +144,20 @@ class OrderHistoryEditCancelIntegrationTest extends AbstractIntegrationTest {
     // ------------------------------------------------------- outside window
 
     @Test
-    void showEditPage_outsideFiveMinuteWindow_redirectsToHistoryWithFriendlyFlash() throws Exception {
+    void loadEditPage_outsideFiveMinuteWindow_isConflictWithFriendlyMessage() throws Exception {
         Customer customer = persistedCustomer();
         Pizza pizza = persistedPizza(new BigDecimal("10.00"));
         Order expired = seedOrder(customer, LocalDateTime.now().minusMinutes(10), "PLACED", pizza, 1);
         MockHttpSession session = customerSession(customer);
 
-        mockMvc.perform(get("/orders/edit/" + expired.getId()).session(session))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/orders/history"))
-                .andExpect(flash().attribute("errorMessage",
+        mockMvc.perform(get("/api/orders/{orderId}", expired.getId()).session(session))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value(
                         "The edit time for this order has expired. Please place a new order to make changes."));
     }
 
     @Test
-    void postMutation_outsideFiveMinuteWindow_surfacesAsUncaught500AndLeavesOrderUnchanged() throws Exception {
+    void mutation_outsideFiveMinuteWindow_isConflictAndLeavesOrderUnchanged() throws Exception {
         Customer customer = persistedCustomer();
         Pizza pizza = persistedPizza(new BigDecimal("10.00"));
         Order expired = seedOrder(customer, LocalDateTime.now().minusMinutes(10), "PLACED", pizza, 1);
@@ -143,16 +166,16 @@ class OrderHistoryEditCancelIntegrationTest extends AbstractIntegrationTest {
         String originalPhone = expired.getPhone();
         MockHttpSession session = customerSession(customer);
 
-        // OrderService.updateOrderDetails calls validateEditWindow() BEFORE
-        // mutating the order; that throws an IllegalStateException which has
-        // no dedicated @ExceptionHandler in GlobalExceptionHandler, so it
-        // falls through to the generic Exception handler -> HTTP 500 (not a
-        // friendly redirect - only the GET edit page does that).
-        mockMvc.perform(post("/orders/edit/" + orderId)
-                        .param("deliveryAddress", "Should not be applied")
-                        .param("phone", "1112223333")
+        // OrderService.updateOrderDetails calls validateEditWindow() BEFORE mutating the
+        // order, so nothing is written. The resulting IllegalStateException is now mapped
+        // to a 409 rather than surfacing as an uncaught 500.
+        mockMvc.perform(put("/api/orders/{orderId}", orderId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "deliveryAddress", "Should not be applied",
+                                "phone", "1112223333")))
                         .session(session))
-                .andExpect(status().isInternalServerError());
+                .andExpect(status().isConflict());
 
         Order unchanged = orderRepository.findByIdWithDetails(orderId).orElseThrow();
         assertThat(unchanged.getDeliveryAddress()).isEqualTo(originalAddress);
@@ -169,20 +192,17 @@ class OrderHistoryEditCancelIntegrationTest extends AbstractIntegrationTest {
         Long orderId = placed.getId();
         MockHttpSession session = customerSession(customer);
 
-        mockMvc.perform(post("/orders/cancel/" + orderId).session(session))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/orders/history"))
-                .andExpect(flash().attribute("successMessage", "Order cancelled successfully."));
+        mockMvc.perform(post("/api/orders/{orderId}/cancel", orderId).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Order cancelled successfully."));
 
         Order afterFirstCancel = orderRepository.findByIdWithDetails(orderId).orElseThrow();
         assertThat(afterFirstCancel.getStatus()).isEqualTo("CANCELLED");
 
         // Cancelling an already-cancelled order throws IllegalStateException
-        // ("Only placed orders can be cancelled."), which - like the expired
-        // edit-window case above - is not specifically handled and surfaces
-        // as an uncaught 500 via the generic Exception handler.
-        mockMvc.perform(post("/orders/cancel/" + orderId).session(session))
-                .andExpect(status().isInternalServerError());
+        // ("Only placed orders can be cancelled."), now mapped to a 409.
+        mockMvc.perform(post("/api/orders/{orderId}/cancel", orderId).session(session))
+                .andExpect(status().isConflict());
 
         Order afterSecondAttempt = orderRepository.findByIdWithDetails(orderId).orElseThrow();
         assertThat(afterSecondAttempt.getStatus()).isEqualTo("CANCELLED");
@@ -204,10 +224,9 @@ class OrderHistoryEditCancelIntegrationTest extends AbstractIntegrationTest {
         // prove reorder APPENDS rather than clearing/replacing cart contents.
         cartService.addPizzaToCart(customer.getEmail(), pizza.getId());
 
-        mockMvc.perform(post("/orders/reorder/" + orderId).session(session))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/cart"))
-                .andExpect(flash().attribute("successMessage", "1 item(s) added to your cart."));
+        mockMvc.perform(post("/api/orders/{orderId}/reorder", orderId).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("1 item(s) added to your cart."));
 
         // Force Hibernate to synchronize with H2 and drop cached state, so the
         // read below reflects genuine database rows rather than the stale,
@@ -235,10 +254,9 @@ class OrderHistoryEditCancelIntegrationTest extends AbstractIntegrationTest {
         pizza.setAvailable(false);
         pizzaRepository.saveAndFlush(pizza);
 
-        mockMvc.perform(post("/orders/reorder/" + orderId).session(session))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/cart"))
-                .andExpect(flash().attribute("successMessage",
+        mockMvc.perform(post("/api/orders/{orderId}/reorder", orderId).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value(
                         "0 item(s) added to your cart. 1 unavailable, skipped."));
 
         entityManager.flush();

@@ -11,6 +11,12 @@ Complete deployment setup for the full application (US-001 to US-018): customer 
 - Aiven MySQL database
 - Cloudinary account
 
+Node and npm are **not** a prerequisite: the Maven build downloads its own pinned Node
+(see `frontend.node.version` in `pom.xml`) and runs `npm ci && npm run build` for the React
+app in `frontend/`. The first build is slower for that reason, and it needs network access.
+If you already have Node installed and want a hot-reloading UI loop, see the frontend
+section of the README.
+
 ---
 
 ## 1. Clone and Configure Environment
