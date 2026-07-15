@@ -87,7 +87,7 @@ export default function OrderHistory() {
                                                         {item.itemType === 'DRINK' ? item.drinkName : item.pizzaName}
                                                         {item.itemType === 'DRINK' && (
                                                             <span className="ms-1 badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
-                                                                🥤
+                                                                
                                                             </span>
                                                         )}
                                                     </td>

@@ -53,7 +53,7 @@ export default function AdminDrinkList() {
         <>
             <div className="d-flex justify-content-between align-items-center flex-wrap mb-4">
                 <h2 className="fw-bold mb-0">
-                    🥤 Manage Drinks
+                     Manage Drinks
                 </h2>
                 <Link to="/admin/drinks/add" className="btn btn-primary">
                     <i className="bi bi-plus-circle" /> Add Drink

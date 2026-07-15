@@ -121,7 +121,7 @@ export default function EditOrder() {
                                                 {item.itemType === 'DRINK' ? item.drinkName : item.pizzaName}
                                                 {item.itemType === 'DRINK' && (
                                                     <span className="ms-2 badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
-                                                        🥤 Drink
+                                                         Drink
                                                     </span>
                                                 )}
                                             </td>
@@ -239,7 +239,7 @@ export default function EditOrder() {
                                             🍕 Add More Pizzas
                                         </Link>
                                         <Link to={`/drinks?orderId=${order.id}`} className="btn btn-info">
-                                            🥤 Add Drinks
+                                             Add Drinks
                                         </Link>
                                         <SubmitButton pending={pending} className="btn btn-success">
                                             Update Order

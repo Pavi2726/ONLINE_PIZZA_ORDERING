@@ -23,7 +23,7 @@ export default function Home() {
                         <i className="bi bi-list-ul" /> Browse Pizzas
                     </Link>
                     <Link to="/drinks" className="btn btn-light btn-lg px-4 fw-semibold">
-                        🥤 Browse Drinks
+                         Browse Drinks
                     </Link>
                 </div>
             </header>

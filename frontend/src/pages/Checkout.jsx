@@ -61,7 +61,7 @@ export default function Checkout() {
                                         </span>
                                         {item.itemType === 'DRINK' && (
                                             <span className="ms-2 badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
-                                                🥤 Drink
+                                                 Drink
                                             </span>
                                         )}
                                     </td>

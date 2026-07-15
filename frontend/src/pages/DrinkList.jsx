@@ -91,7 +91,7 @@ export default function DrinkList() {
         <section className="container my-5">
             <div className="mb-4">
                 <h2 className="fw-bold mb-0">
-                    🥤 Drinks Menu
+                     Drinks Menu
                 </h2>
                 <p className="text-muted mt-1 mb-0">Refreshing beverages to go with your order</p>
             </div>
@@ -201,7 +201,7 @@ export default function DrinkList() {
                                             disabled={pending && busyId === drink.id}
                                             onClick={() => addToOrder(drink.id)}
                                         >
-                                            🥤 Add to This Order
+                                             Add to This Order
                                         </button>
                                     ) : (
                                         <button

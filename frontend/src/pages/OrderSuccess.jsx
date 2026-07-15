@@ -53,7 +53,7 @@ export default function OrderSuccess() {
                                                         {item.itemType === 'DRINK' ? item.drinkName : item.pizzaName}
                                                         {item.itemType === 'DRINK' && (
                                                             <span className="ms-1 badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
-                                                                🥤
+                                                                
                                                             </span>
                                                         )}
                                                     </td>
@@ -132,7 +132,7 @@ export default function OrderSuccess() {
                                     <i className="bi bi-list-ul" /> More Pizzas
                                 </Link>
                                 <Link to="/drinks" className="btn btn-primary">
-                                    🥤 More Drinks
+                                     More Drinks
                                 </Link>
                                 <Link to="/" className="btn btn-outline-secondary">
                                     <i className="bi bi-house" /> Home

@@ -51,7 +51,7 @@ function Navbar() {
                         </li>
                         <li className="nav-item">
                             <NavLink className="nav-link" to="/drinks">
-                                🥤 Drinks
+                                 Drinks
                             </NavLink>
                         </li>
 
