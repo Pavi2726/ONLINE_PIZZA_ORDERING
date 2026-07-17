@@ -3,6 +3,8 @@ package com.pizza.service;
 import com.pizza.dto.PizzaDTO;
 import com.pizza.entity.Pizza;
 import com.pizza.exception.ResourceNotFoundException;
+import com.pizza.repository.CartItemRepository;
+import com.pizza.repository.OrderItemRepository;
 import com.pizza.repository.PizzaRepository;
 import com.pizza.service.CloudinaryService.UploadResult;
 import com.pizza.testsupport.TestDataFactory;
@@ -40,6 +42,12 @@ class PizzaServiceTest {
 
     @Mock
     private CloudinaryService cloudinaryService;
+
+    @Mock
+    private OrderItemRepository orderItemRepository;
+
+    @Mock
+    private CartItemRepository cartItemRepository;
 
     @InjectMocks
     private PizzaService pizzaService;
@@ -231,37 +239,63 @@ class PizzaServiceTest {
     // ---------------------------------------------------------------- delete
 
     @Test
-    void delete_deletesAndFlushesRepositoryBeforeDeletingCloudinaryImage() {
-        // Bug #3 fix: the DB delete (and an explicit flush, to force the FK
-        // constraint check synchronously) now happens BEFORE the Cloudinary
-        // image is deleted, so a failed DB delete never leaves an orphaned
-        // row pointing at an already-deleted image.
+    void delete_clearsReferencesThenDeletesAndFlushesRepositoryBeforeDeletingCloudinaryImage() {
+        // The DB delete (and an explicit flush, to force the FK constraint
+        // check synchronously) happens BEFORE the Cloudinary image is
+        // deleted, so a failed DB delete never leaves an orphaned row
+        // pointing at an already-deleted image. Cart/order-item references
+        // are cleared first so the FK never actually trips for a pizza
+        // that's safe to delete.
         Pizza pizza = TestDataFactory.pizza();
         pizza.setId(3L);
         pizza.setImagePublicId("pizzas/to-delete");
         when(pizzaRepository.findById(3L)).thenReturn(Optional.of(pizza));
+        when(orderItemRepository.existsByPizza_IdAndOrder_StatusNotIn(any(Long.class), any())).thenReturn(false);
 
         pizzaService.delete(3L);
 
-        InOrder order = inOrder(pizzaRepository, cloudinaryService);
+        InOrder order = inOrder(cartItemRepository, orderItemRepository, pizzaRepository, cloudinaryService);
+        order.verify(cartItemRepository).deleteByPizzaId(3L);
+        order.verify(orderItemRepository).clearPizzaReferences(3L);
         order.verify(pizzaRepository).delete(pizza);
         order.verify(pizzaRepository).flush();
         order.verify(cloudinaryService).delete("pizzas/to-delete");
     }
 
     @Test
-    void delete_neverDeletesCloudinaryImage_whenFlushThrowsDataIntegrityViolation() {
+    void delete_blocksAndNeverTouchesAnythingElse_whenPizzaIsOnAnActiveOrder() {
         Pizza pizza = TestDataFactory.pizza();
         pizza.setId(3L);
         pizza.setImagePublicId("pizzas/to-delete");
         when(pizzaRepository.findById(3L)).thenReturn(Optional.of(pizza));
-        org.mockito.Mockito.doThrow(new org.springframework.dao.DataIntegrityViolationException("FK violation"))
-                .when(pizzaRepository).flush();
+        when(orderItemRepository.existsByPizza_IdAndOrder_StatusNotIn(any(Long.class), any())).thenReturn(true);
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, () -> pizzaService.delete(3L));
 
-        assertThat(ex.getMessage()).isEqualTo("This pizza cannot be deleted because it has already been ordered.");
+        assertThat(ex.getMessage()).isEqualTo(
+                "This pizza cannot be deleted because it is part of an order that has not been delivered or cancelled yet.");
+        verify(pizzaRepository, never()).delete(any());
+        verify(cartItemRepository, never()).deleteByPizzaId(any());
+        verify(orderItemRepository, never()).clearPizzaReferences(any());
         verify(cloudinaryService, never()).delete(any());
+    }
+
+    @Test
+    void delete_stillDeletesThePizza_whenCloudinaryCleanupThrows() {
+        // Image cleanup is best-effort: a Cloudinary failure must not roll back
+        // an otherwise-successful pizza deletion.
+        Pizza pizza = TestDataFactory.pizza();
+        pizza.setId(3L);
+        pizza.setImagePublicId("pizzas/to-delete");
+        when(pizzaRepository.findById(3L)).thenReturn(Optional.of(pizza));
+        when(orderItemRepository.existsByPizza_IdAndOrder_StatusNotIn(any(Long.class), any())).thenReturn(false);
+        org.mockito.Mockito.doThrow(new RuntimeException("Cloudinary is unreachable"))
+                .when(cloudinaryService).delete("pizzas/to-delete");
+
+        pizzaService.delete(3L);
+
+        verify(pizzaRepository).delete(pizza);
+        verify(pizzaRepository).flush();
     }
 
     // ---------------------------------------------------------------- findById

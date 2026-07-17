@@ -2,13 +2,17 @@ package com.pizza.service;
 
 import com.pizza.dto.DrinkDTO;
 import com.pizza.entity.Drink;
+import com.pizza.entity.OrderStatus;
 import com.pizza.exception.ResourceNotFoundException;
+import com.pizza.repository.CartItemRepository;
 import com.pizza.repository.DrinkRepository;
+import com.pizza.repository.OrderItemRepository;
 import com.pizza.service.CloudinaryService.UploadResult;
 import java.util.Comparator;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -21,8 +25,12 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 public class DrinkService {
 
+    private static final Logger log = LoggerFactory.getLogger(DrinkService.class);
+
     private final DrinkRepository drinkRepository;
     private final CloudinaryService cloudinaryService;
+    private final OrderItemRepository orderItemRepository;
+    private final CartItemRepository cartItemRepository;
 
     public static final List<String> PREDEFINED_CATEGORIES = List.of(
             "Soft Drinks", "Diet Drinks", "Sugar-Free Drinks", "Zero Sugar", 
@@ -143,20 +151,46 @@ public class DrinkService {
         }
     }
 
+    /**
+     * Deletes a drink and its Cloudinary image.
+     *
+     * <p>Blocked only while the drink is on an order that is still active
+     * (not {@code DELIVERED}/{@code CANCELLED}). Once every referencing
+     * order is terminal, the delete proceeds: any still-open shopping
+     * carts holding this drink are cleared first, then historical order
+     * items are detached (their {@code drink} reference is nulled -
+     * {@code price}/{@code quantity}/{@code lineTotal} already live on the
+     * order item itself, so past orders keep their totals and render the
+     * item as unavailable rather than losing the row).
+     *
+     * <p>The Cloudinary image cleanup is best-effort: a Cloudinary failure
+     * is logged and swallowed rather than rolling back the drink deletion.
+     *
+     * @param id the drink id
+     */
     @Transactional
     public void delete(Long id) {
         Drink drink = findById(id);
         String publicId = drink.getImagePublicId();
 
-        try {
-            drinkRepository.delete(drink);
-            drinkRepository.flush();
-        } catch (DataIntegrityViolationException ex) {
+        boolean hasActiveOrder = orderItemRepository.existsByDrink_IdAndOrder_StatusNotIn(
+                id, List.of(OrderStatus.DELIVERED.name(), OrderStatus.CANCELLED.name()));
+        if (hasActiveOrder) {
             throw new IllegalStateException(
-                    "This drink cannot be deleted because it has already been ordered.", ex);
+                    "This drink cannot be deleted because it is part of an order that has not been delivered or cancelled yet.");
         }
 
-        cloudinaryService.delete(publicId);
+        cartItemRepository.deleteByDrinkId(id);
+        orderItemRepository.clearDrinkReferences(id);
+
+        drinkRepository.delete(drink);
+        drinkRepository.flush();
+
+        try {
+            cloudinaryService.delete(publicId);
+        } catch (RuntimeException ex) {
+            log.warn("Drink {} was deleted, but its Cloudinary image ({}) could not be removed", id, publicId, ex);
+        }
     }
 
     public DrinkDTO toDto(Drink drink) {

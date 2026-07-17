@@ -16,6 +16,7 @@ import com.pizza.entity.CartItem;
 import com.pizza.entity.Coupon;
 import com.pizza.entity.Customer;
 import com.pizza.entity.Order;
+import com.pizza.entity.OrderItem;
 import com.pizza.entity.Pizza;
 import com.pizza.exception.ResourceNotFoundException;
 import com.pizza.repository.CouponRepository;
@@ -219,6 +220,22 @@ class OrderServiceTest {
         verify(orderRepository, never()).save(any());
     }
 
+    @Test
+    void cancelOrder_outsideFiveMinuteWindow_throwsIllegalStateExceptionAndDoesNotSave() {
+        Customer customer = customer();
+        Order order = TestDataFactory.order(customer, LocalDateTime.now().minusMinutes(10), "PLACED");
+        order.setId(12L);
+        when(orderRepository.findByIdAndCustomerId(12L, 1L)).thenReturn(Optional.of(order));
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> orderService.cancelOrder(12L, 1L));
+
+        assertThat(ex.getMessage())
+                .isEqualTo("The 5-minute update window has expired. Please reorder to make any changes.");
+        assertThat(order.getStatus()).isEqualTo("PLACED");
+        verify(orderRepository, never()).save(any());
+    }
+
     // ---------------------------------------------------------------- 5-minute edit window
     // (updateOrderDetails is the simplest public method that goes through
     // validateEditWindow, so it is used to exercise that guard directly.)
@@ -251,6 +268,29 @@ class OrderServiceTest {
         assertThat(ex.getMessage())
                 .isEqualTo("The 5-minute update window has expired. Please reorder to make any changes.");
         assertThat(order.getDeliveryAddress()).isEqualTo(originalAddress);
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    void increaseItemQuantity_onNonPlacedOrder_throwsIllegalStateException_evenWithinFiveMinuteWindow() {
+        // Consolidating onto the shared isWithinEditWindow predicate closes a gap where a
+        // customer could still mutate an order an admin had already advanced past PLACED,
+        // as long as it happened within the first 5 minutes.
+        Customer customer = customer();
+        Order order = TestDataFactory.order(customer, LocalDateTime.now(), "PROCESSING");
+        order.setId(22L);
+        Pizza pizza = TestDataFactory.pizza("Margherita", new BigDecimal("9.99"), "Classic", true);
+        OrderItem item = TestDataFactory.orderItem(order, pizza, 1);
+        item.setId(220L);
+        order.addOrderItem(item);
+        when(orderRepository.findByIdAndCustomerId(22L, 1L)).thenReturn(Optional.of(order));
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> orderService.increaseItemQuantity(22L, 220L, 1L));
+
+        assertThat(ex.getMessage())
+                .isEqualTo("The 5-minute update window has expired. Please reorder to make any changes.");
+        assertThat(item.getQuantity()).isEqualTo(1);
         verify(orderRepository, never()).save(any());
     }
 

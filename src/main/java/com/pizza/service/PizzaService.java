@@ -1,14 +1,18 @@
 package com.pizza.service;
 
 import com.pizza.dto.PizzaDTO;
+import com.pizza.entity.OrderStatus;
 import com.pizza.entity.Pizza;
 import com.pizza.exception.ResourceNotFoundException;
+import com.pizza.repository.CartItemRepository;
+import com.pizza.repository.OrderItemRepository;
 import com.pizza.repository.PizzaRepository;
 import com.pizza.service.CloudinaryService.UploadResult;
 import java.util.Comparator;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -23,8 +27,12 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 public class PizzaService {
 
+    private static final Logger log = LoggerFactory.getLogger(PizzaService.class);
+
     private final PizzaRepository pizzaRepository;
     private final CloudinaryService cloudinaryService;
+    private final OrderItemRepository orderItemRepository;
+    private final CartItemRepository cartItemRepository;
 
     /** Returns all pizzas. */
     @Transactional(readOnly = true)
@@ -176,13 +184,20 @@ public class PizzaService {
     /**
      * Deletes a pizza and its Cloudinary image (US-006).
      *
-     * <p>The DB row is deleted (and flushed, to force the FK constraint
-     * check to happen here rather than at eventual commit) before the
-     * Cloudinary image, so a pizza still referenced by an existing order
-     * fails cleanly with the image left intact - mirroring the
-     * upload-first/rollback-on-failure convention already used in {@link
-     * #add}/{@link #update}, just in the opposite direction since deleting
-     * is the inverse operation.
+     * <p>Blocked only while the pizza is on an order that is still active
+     * (not {@code DELIVERED}/{@code CANCELLED}). Once every referencing
+     * order is terminal, the delete proceeds: any still-open shopping
+     * carts holding this pizza are cleared first, then historical order
+     * items are detached (their {@code pizza} reference is nulled -
+     * {@code price}/{@code quantity}/{@code lineTotal} already live on the
+     * order item itself, so past orders keep their totals and render the
+     * item as unavailable rather than losing the row).
+     *
+     * <p>The Cloudinary image cleanup is best-effort: a Cloudinary failure
+     * (misconfiguration, the CDN being down, a flaky response) is logged
+     * and swallowed rather than rolling back the pizza deletion - an
+     * orphaned CDN image is a minor, recoverable issue, whereas an admin
+     * being unable to remove a pizza from the menu is not.
      *
      * @param id the pizza id
      */
@@ -191,15 +206,24 @@ public class PizzaService {
         Pizza pizza = findById(id);
         String publicId = pizza.getImagePublicId();
 
-        try {
-            pizzaRepository.delete(pizza);
-            pizzaRepository.flush();
-        } catch (DataIntegrityViolationException ex) {
+        boolean hasActiveOrder = orderItemRepository.existsByPizza_IdAndOrder_StatusNotIn(
+                id, List.of(OrderStatus.DELIVERED.name(), OrderStatus.CANCELLED.name()));
+        if (hasActiveOrder) {
             throw new IllegalStateException(
-                    "This pizza cannot be deleted because it has already been ordered.", ex);
+                    "This pizza cannot be deleted because it is part of an order that has not been delivered or cancelled yet.");
         }
 
-        cloudinaryService.delete(publicId);
+        cartItemRepository.deleteByPizzaId(id);
+        orderItemRepository.clearPizzaReferences(id);
+
+        pizzaRepository.delete(pizza);
+        pizzaRepository.flush();
+
+        try {
+            cloudinaryService.delete(publicId);
+        } catch (RuntimeException ex) {
+            log.warn("Pizza {} was deleted, but its Cloudinary image ({}) could not be removed", id, publicId, ex);
+        }
     }
 
     /** Maps an entity to a form-backing DTO (for the edit screen). */

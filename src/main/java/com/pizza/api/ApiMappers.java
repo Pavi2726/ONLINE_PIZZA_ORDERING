@@ -17,19 +17,13 @@ import com.pizza.entity.Order;
 import com.pizza.entity.OrderItem;
 import com.pizza.entity.OrderStatus;
 import com.pizza.entity.Pizza;
+import com.pizza.service.OrderService;
 import java.math.BigDecimal;
-import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
 /** Entity → response-record mapping. The only place entities are read for the wire. */
 public final class ApiMappers {
-
-    /** Matches the window enforced by {@code OrderService} and the old edit-order page. */
-    private static final long EDIT_WINDOW_MINUTES = 5;
-
-    private static final String PLACED = "PLACED";
 
     private ApiMappers() {
     }
@@ -176,7 +170,7 @@ public final class ApiMappers {
                 o.getPhone(),
                 o.getOrderItems().stream().map(ApiMappers::orderItem).toList(),
                 customer,
-                PLACED.equals(status),
+                withinEditWindow(o),
                 withinEditWindow(o));
     }
 
@@ -188,12 +182,9 @@ public final class ApiMappers {
         return list.stream().map(ApiMappers::orderForAdmin).toList();
     }
 
-    /** True while the order is still inside the five-minute edit window. */
+    /** True while the order is still inside the five-minute edit/cancel window. Delegates to {@link OrderService}, the canonical source of this rule. */
     public static boolean withinEditWindow(Order o) {
-        if (!PLACED.equals(o.getStatus()) || o.getOrderTime() == null) {
-            return false;
-        }
-        return Duration.between(o.getOrderTime(), LocalDateTime.now()).toMinutes() < EDIT_WINDOW_MINUTES;
+        return OrderService.isWithinEditWindow(o);
     }
 
     private static String estimatedWindow(String status) {

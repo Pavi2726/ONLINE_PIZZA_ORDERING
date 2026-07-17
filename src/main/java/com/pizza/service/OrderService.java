@@ -178,8 +178,19 @@ public class OrderService {
         return orderRepository.findAllByCustomerId(customerId);
     }
 
+    /** Matches the window enforced here and reflected in {@code ApiMappers}' cancellable/editable flags. */
+    public static final long EDIT_WINDOW_MINUTES = 5;
+
+    /** True while the order is still {@code PLACED} and inside the five-minute edit/cancel window. */
+    public static boolean isWithinEditWindow(Order order) {
+        if (!DEFAULT_STATUS.equals(order.getStatus()) || order.getOrderTime() == null) {
+            return false;
+        }
+        return Duration.between(order.getOrderTime(), LocalDateTime.now()).toMinutes() < EDIT_WINDOW_MINUTES;
+    }
+
     private void validateEditWindow(Order order) {
-        if (Duration.between(order.getOrderTime(), LocalDateTime.now()).toMinutes() >= 5) {
+        if (!isWithinEditWindow(order)) {
             throw new IllegalStateException(
                     "The 5-minute update window has expired. Please reorder to make any changes.");
         }
@@ -196,6 +207,7 @@ public class OrderService {
         if (!DEFAULT_STATUS.equals(order.getStatus())) {
             throw new IllegalStateException("Only placed orders can be cancelled.");
         }
+        validateEditWindow(order);
 
         order.setStatus("CANCELLED");
 

@@ -208,6 +208,25 @@ class OrderHistoryEditCancelIntegrationTest extends AbstractIntegrationTest {
         assertThat(afterSecondAttempt.getStatus()).isEqualTo("CANCELLED");
     }
 
+    @Test
+    void cancelOrder_outsideFiveMinuteWindow_isConflictAndLeavesOrderPlaced() throws Exception {
+        // Cancel now shares the same 5-minute window as edit: a PLACED order older than
+        // 5 minutes is locked, and can only be advanced/cancelled by an admin from here.
+        Customer customer = persistedCustomer();
+        Pizza pizza = persistedPizza(new BigDecimal("10.00"));
+        Order expired = seedOrder(customer, LocalDateTime.now().minusMinutes(10), "PLACED", pizza, 1);
+        Long orderId = expired.getId();
+        MockHttpSession session = customerSession(customer);
+
+        mockMvc.perform(post("/api/orders/{orderId}/cancel", orderId).session(session))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value(
+                        "The 5-minute update window has expired. Please reorder to make any changes."));
+
+        Order unchanged = orderRepository.findByIdWithDetails(orderId).orElseThrow();
+        assertThat(unchanged.getStatus()).isEqualTo("PLACED");
+    }
+
     // ---------------------------------------------------------------- reorder (Task 7)
 
     @Test

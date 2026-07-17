@@ -76,6 +76,11 @@ public class CloudinaryService {
             log.debug("Deleted image from Cloudinary: {}", publicId);
         } catch (IOException ex) {
             throw new CloudinaryException("Failed to delete image from Cloudinary", ex);
+        } catch (RuntimeException ex) {
+            // The SDK throws a raw RuntimeException (not IOException) when Cloudinary
+            // returns a non-JSON response (e.g. misconfigured credentials) - normalize
+            // it to the same CloudinaryException callers already handle.
+            throw new CloudinaryException("Failed to delete image from Cloudinary", ex);
         }
     }
 

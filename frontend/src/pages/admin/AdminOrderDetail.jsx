@@ -57,7 +57,7 @@ export default function AdminOrderDetail() {
                             <table className="table table-bordered align-middle">
                                 <thead className="table-light">
                                     <tr>
-                                        <th>Pizza</th>
+                                        <th>Item</th>
                                         <th>Qty</th>
                                         <th className="text-end">Price</th>
                                         <th className="text-end">Total</th>
@@ -66,7 +66,13 @@ export default function AdminOrderDetail() {
                                 <tbody>
                                     {order.items.map((item) => (
                                         <tr key={item.id}>
-                                            <td>{item.pizzaName}</td>
+                                            <td>
+                                                {item.itemType === 'DRINK'
+                                                    ? item.drinkName
+                                                    : item.itemType === 'PIZZA'
+                                                        ? item.pizzaName
+                                                        : 'Item no longer available'}
+                                            </td>
                                             <td>{item.quantity}</td>
                                             <td className="text-end">{money(item.price)}</td>
                                             <td className="text-end">{money(item.lineTotal)}</td>

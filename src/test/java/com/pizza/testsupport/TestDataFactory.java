@@ -5,6 +5,7 @@ import com.pizza.entity.Cart;
 import com.pizza.entity.CartItem;
 import com.pizza.entity.Coupon;
 import com.pizza.entity.Customer;
+import com.pizza.entity.Drink;
 import com.pizza.entity.Order;
 import com.pizza.entity.OrderItem;
 import com.pizza.entity.Pizza;
@@ -87,6 +88,26 @@ public final class TestDataFactory {
                 .build();
     }
 
+    // ---------------------------------------------------------------- Drink
+
+    public static Drink drink() {
+        return drink("Cola", new BigDecimal("2.99"), "Soft Drinks", true);
+    }
+
+    public static Drink drink(String name, BigDecimal price, String category, boolean available) {
+        long n = next();
+        return Drink.builder()
+                .name(name)
+                .description("Test drink description #" + n)
+                .category(category)
+                .price(price)
+                .size("500ml")
+                .imageUrl("https://example.test/drink-" + n + ".jpg")
+                .imagePublicId("pizza-ordering/drinks/test-" + n)
+                .available(available)
+                .build();
+    }
+
     // ---------------------------------------------------------------- Order
 
     /** An order placed "now", with sensible default amounts. */
@@ -132,6 +153,17 @@ public final class TestDataFactory {
                 .build();
     }
 
+    public static OrderItem orderItem(Order order, Drink drink, int quantity) {
+        BigDecimal price = drink.getPrice();
+        return OrderItem.builder()
+                .order(order)
+                .drink(drink)
+                .quantity(quantity)
+                .price(price)
+                .lineTotal(price.multiply(BigDecimal.valueOf(quantity)))
+                .build();
+    }
+
     // ---------------------------------------------------------------- Coupon
 
     public static Coupon coupon() {
@@ -160,6 +192,14 @@ public final class TestDataFactory {
         CartItem item = new CartItem();
         item.setCart(cart);
         item.setPizza(pizza);
+        item.setQuantity(quantity);
+        return item;
+    }
+
+    public static CartItem cartItem(Cart cart, Drink drink, int quantity) {
+        CartItem item = new CartItem();
+        item.setCart(cart);
+        item.setDrink(drink);
         item.setQuantity(quantity);
         return item;
     }

@@ -50,7 +50,11 @@ export default function OrderSuccess() {
                                             {order.items.map((item) => (
                                                 <tr key={item.id}>
                                                     <td>
-                                                        {item.itemType === 'DRINK' ? item.drinkName : item.pizzaName}
+                                                        {item.itemType === 'DRINK'
+                                                            ? item.drinkName
+                                                            : item.itemType === 'PIZZA'
+                                                                ? item.pizzaName
+                                                                : 'Item no longer available'}
                                                         {item.itemType === 'DRINK' && (
                                                             <span className="ms-1 badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
                                                                 

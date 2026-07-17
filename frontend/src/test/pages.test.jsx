@@ -72,9 +72,10 @@ describe('Cart', () => {
 describe('OrderHistory', () => {
     afterEach(() => vi.restoreAllMocks());
 
-    // ApiMappers: cancellable = PLACED, editable = PLACED AND < 5 minutes old. An order can
-    // be cancellable for a long time after it stops being editable.
-    it('hides Edit Order once the edit window has closed, even though the order is still cancellable', async () => {
+    // ApiMappers: cancellable and editable are the same condition - PLACED AND < 5 minutes
+    // old. Once the window closes the order is locked: neither action is available again
+    // until an admin advances the order past PLACED.
+    it('hides both Cancel and Edit Order once the edit window has closed', async () => {
         vi.spyOn(SessionContext, 'useSession').mockReturnValue({ refresh: vi.fn() });
 
         orderApi.history.mockResolvedValue([
@@ -91,7 +92,7 @@ describe('OrderHistory', () => {
                 totalAmount: 209,
                 createdAt: '2026-07-14T09:00:00',
                 updatedAt: null,
-                cancellable: true,
+                cancellable: false,
                 editable: false,
             },
         ]);
@@ -99,7 +100,7 @@ describe('OrderHistory', () => {
         renderWithProviders(<OrderHistory />);
 
         expect(await screen.findByRole('link', { name: /view details/i })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /cancel order/i })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /cancel order/i })).not.toBeInTheDocument();
         expect(screen.queryByRole('link', { name: /edit order/i })).not.toBeInTheDocument();
     });
 

@@ -84,7 +84,11 @@ export default function OrderHistory() {
                                             {order.items.map((item) => (
                                                 <tr key={item.id}>
                                                     <td>
-                                                        {item.itemType === 'DRINK' ? item.drinkName : item.pizzaName}
+                                                        {item.itemType === 'DRINK'
+                                                            ? item.drinkName
+                                                            : item.itemType === 'PIZZA'
+                                                                ? item.pizzaName
+                                                                : 'Item no longer available'}
                                                         {item.itemType === 'DRINK' && (
                                                             <span className="ms-1 badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
                                                                 
@@ -150,34 +154,38 @@ export default function OrderHistory() {
                                 </div>
                             </div>
 
-                            {order.cancellable && (
-                                <div className="d-flex justify-content-end gap-2 mt-3">
-                                    <Link
-                                        to={`/orders/success/${order.orderNumber}`}
-                                        className="btn btn-info btn-sm"
-                                    >
-                                        <i className="bi bi-eye" /> View Details
-                                    </Link>
-                                    {/* Editing closes after five minutes, well before the order
-                                        leaves PLACED status, so this needs its own flag. */}
-                                    {order.editable && (
-                                        <Link
-                                            to={`/orders/edit/${order.id}`}
-                                            className="btn btn-warning btn-sm"
+                            <div className="d-flex justify-content-end gap-2 mt-3">
+                                {/* Always available - viewing a past order isn't gated by
+                                    whether it's still cancellable/editable. */}
+                                <Link
+                                    to={`/orders/success/${order.orderNumber}`}
+                                    className="btn btn-info btn-sm"
+                                >
+                                    <i className="bi bi-eye" /> View Details
+                                </Link>
+                                {order.cancellable && (
+                                    <>
+                                        {/* cancellable and editable share the same PLACED-and-
+                                            within-five-minutes condition, so they always agree. */}
+                                        {order.editable && (
+                                            <Link
+                                                to={`/orders/edit/${order.id}`}
+                                                className="btn btn-warning btn-sm"
+                                            >
+                                                <i className="bi bi-pencil-square" /> Edit Order
+                                            </Link>
+                                        )}
+                                        <button
+                                            type="button"
+                                            className="btn btn-danger btn-sm"
+                                            disabled={pending && busyId === order.id}
+                                            onClick={() => cancel(order.id)}
                                         >
-                                            <i className="bi bi-pencil-square" /> Edit Order
-                                        </Link>
-                                    )}
-                                    <button
-                                        type="button"
-                                        className="btn btn-danger btn-sm"
-                                        disabled={pending && busyId === order.id}
-                                        onClick={() => cancel(order.id)}
-                                    >
-                                        <i className="bi bi-x-circle" /> Cancel Order
-                                    </button>
-                                </div>
-                            )}
+                                            <i className="bi bi-x-circle" /> Cancel Order
+                                        </button>
+                                    </>
+                                )}
+                            </div>
 
                             {/* Reorder is offered on every order, whatever its status. */}
                             <div className="d-flex justify-content-end mt-2">
